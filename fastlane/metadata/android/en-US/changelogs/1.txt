@@ -1,0 +1,1 @@
+First release: cameras with live view, review of alerts and detections with playback, recordings by hour, camera switches for admins, system stats, optional alert notifications. HTTPS only with certificate pinning.

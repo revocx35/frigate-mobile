@@ -1,0 +1,15 @@
+[
+    {
+        "events": 1,
+        "hours": [
+            {
+                "hour": "22",
+                "events": 1,
+                "motion": 4886,
+                "objects": 0,
+                "duration": 230
+            }
+        ],
+        "day": "2026-11-19"
+    }
+]

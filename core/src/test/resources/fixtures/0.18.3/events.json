@@ -1,0 +1,50 @@
+[
+    {
+        "id": "1795126902.662355-1n73eo",
+        "camera": "garage",
+        "label": "car",
+        "zones": [],
+        "start_time": 1795126897.662355,
+        "end_time": 1795126912.662355,
+        "has_clip": true,
+        "has_snapshot": true,
+        "plus_id": null,
+        "retain_indefinitely": false,
+        "sub_label": null,
+        "top_score": null,
+        "false_positive": false,
+        "box": [],
+        "data": {
+            "type": "api",
+            "score": 0,
+            "top_score": 0,
+            "snapshot_clean": true,
+            "draw": {}
+        },
+        "thumbnail": null
+    },
+    {
+        "id": "1795126902.645324-jh07t0",
+        "camera": "front",
+        "label": "person",
+        "zones": [],
+        "start_time": 1795126897.645324,
+        "end_time": 1795126922.645324,
+        "has_clip": true,
+        "has_snapshot": true,
+        "plus_id": null,
+        "retain_indefinitely": false,
+        "sub_label": null,
+        "top_score": null,
+        "false_positive": false,
+        "box": [],
+        "data": {
+            "type": "api",
+            "score": 0,
+            "top_score": 0,
+            "snapshot_clean": true,
+            "draw": {}
+        },
+        "thumbnail": null
+    }
+]

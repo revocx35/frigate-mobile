@@ -1,0 +1,18 @@
+Frigate Mobile is an unofficial, native Android client for the Frigate network video recorder. It talks straight to your own Frigate server; there is no cloud service in between and no tracking.
+
+Features:
+* Cameras: every camera with a frame that refreshes while you look, online status and recording/detection badges.
+* Live view: Frigate's MJPEG live stream, full screen in landscape, with optional detection boxes.
+* Review: alerts and detections, newest first, filtered to unreviewed items and by camera. Mark all as reviewed.
+* Review item: plays the recording around the event, lists the tracked objects with snapshots, and marks it reviewed.
+* Recordings: browse a camera's recordings by day and hour and play them (seekable HLS).
+* Camera switches for admins: object detection, recording, snapshots and audio detection (Frigate 0.17+).
+* System: Frigate version and update notice, detector speed, CPU/GPU load, storage and camera FPS.
+* Optional alert notifications with thumbnails (checked every 15 minutes).
+
+Security:
+* HTTPS only. Frigate's self-signed certificate (port 8971) is pinned after you compare its SHA-256 fingerprint.
+* The session token and (only if you choose "stay signed in") your password are encrypted with an Android Keystore key. App backups are off.
+* Session cookie is only ever sent to your Frigate server.
+
+Frigate is a trademark of its owners; this app is not affiliated with the Frigate project.

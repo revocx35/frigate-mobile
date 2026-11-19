@@ -1,0 +1,275 @@
+{
+    "cameras": {
+        "front": {
+            "camera_fps": 2.1,
+            "process_fps": 2.1,
+            "skipped_fps": 0.0,
+            "detection_fps": 0.0,
+            "detection_enabled": true,
+            "pid": 627,
+            "capture_pid": 692,
+            "ffmpeg_pid": 737,
+            "audio_rms": 0,
+            "audio_dBFS": 0,
+            "connection_quality": "excellent",
+            "expected_fps": 2,
+            "reconnects_last_hour": 0,
+            "stalls_last_hour": 0,
+            "ffmpeg_cpu": "1.1",
+            "capture_cpu": "0.1",
+            "detect_cpu": "0.3"
+        },
+        "garage": {
+            "camera_fps": 1.0,
+            "process_fps": 1.0,
+            "skipped_fps": 0.0,
+            "detection_fps": 0.0,
+            "detection_enabled": false,
+            "pid": 764,
+            "capture_pid": 840,
+            "ffmpeg_pid": 887,
+            "audio_rms": 0,
+            "audio_dBFS": 0,
+            "connection_quality": "excellent",
+            "expected_fps": 1,
+            "reconnects_last_hour": 0,
+            "stalls_last_hour": 1,
+            "ffmpeg_cpu": "0.9",
+            "capture_cpu": "0.1",
+            "detect_cpu": "0.1"
+        }
+    },
+    "detectors": {
+        "cpu1": {
+            "inference_speed": 10.0,
+            "detection_start": 0.0,
+            "pid": 539,
+            "cpu": "0.0",
+            "mem": "7.5"
+        }
+    },
+    "camera_fps": 3.1,
+    "process_fps": 3.1,
+    "skipped_fps": 0.0,
+    "detection_fps": 0.0,
+    "embeddings": {},
+    "cpu_usages": {
+        "frigate.full_system": {
+            "cpu": "27.1",
+            "mem": "79.9"
+        },
+        "31": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "0.0",
+            "cmdline": "s6-supervise go2rtc-healthcheck"
+        },
+        "34": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "0.0",
+            "cmdline": "s6-supervise go2rtc-log"
+        },
+        "37": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "0.0",
+            "cmdline": "s6-supervise go2rtc"
+        },
+        "98": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "0.0",
+            "cmdline": "s6-log -b -- T 1 n0 s10000000 T /dev/shm/logs/go2rtc"
+        },
+        "129": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "1.0",
+            "cmdline": "/usr/local/go2rtc/bin/go2rtc -config=/config/go2rtc_homekit.yml -config=/dev/shm/go2rtc.yaml"
+        },
+        "137": {
+            "cpu": "0.5",
+            "cpu_average": "2",
+            "mem": "16.3",
+            "cmdline": "python3 -u -m frigate"
+        },
+        "138": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "0.2",
+            "cmdline": "bash ./run.user go2rtc-healthcheck"
+        },
+        "281": {
+            "cpu": "0.3",
+            "cpu_average": "0",
+            "mem": "9.9",
+            "cmdline": "python3 -u -m frigate"
+        },
+        "287": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "0.5",
+            "cmdline": "/usr/bin/python3 -Wignore:::numpy.core.getlimits -c from multiprocessing.resource_tracker import main;main(4)"
+        },
+        "462": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "10.4",
+            "cmdline": "/usr/bin/python3 -Wignore:::numpy.core.getlimits -c from multiprocessing.forkserver import main; main(27, 28, ['sqlite3', 'numpy', 'cv2', 'peewee', 'zmq', 'ruamel.yaml', 'frigate.camera.maintainer'], **{'sys_path': ['/opt/frigate', '/usr/lib/python311.zip', '/usr/lib/python3.11', '/usr/lib/python3.11/lib-dynload', '/usr/local/lib/python3.11/dist-packages', '/usr/lib/python3/dist-packages']})"
+        },
+        "467": {
+            "cpu": "0.1",
+            "cpu_average": "0",
+            "mem": "7.1",
+            "cmdline": "frigate.recording_manager"
+        },
+        "479": {
+            "cpu": "0.1",
+            "cpu_average": "0",
+            "mem": "6.8",
+            "cmdline": "frigate.review_segment_manager"
+        },
+        "490": {
+            "cpu": "0.1",
+            "cpu_average": "0",
+            "mem": "8.1",
+            "cmdline": "frigate.embeddings_manager"
+        },
+        "539": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "7.5",
+            "cmdline": "frigate.detector:cpu1"
+        },
+        "559": {
+            "cpu": "0.8",
+            "cpu_average": "0",
+            "mem": "7.1",
+            "cmdline": "frigate.output"
+        },
+        "589": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "1.1",
+            "cmdline": "/usr/lib/ffmpeg/8.0/bin/ffmpeg -threads 1 -f rawvideo -pix_fmt yuv420p -video_size 640x360 -i pipe: -threads 1 -f mpegts -s 1280x720 -codec:v mpeg1video -q 8 -bf 0 pipe:"
+        },
+        "596": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "1.1",
+            "cmdline": "/usr/lib/ffmpeg/8.0/bin/ffmpeg -threads 1 -f rawvideo -pix_fmt yuv420p -video_size 640x360 -i pipe: -threads 1 -f mpegts -s 1280x720 -codec:v mpeg1video -q 8 -bf 0 pipe:"
+        },
+        "598": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "6.5",
+            "cmdline": "frigate.audio_manager"
+        },
+        "607": {
+            "cpu": "0.0",
+            "cpu_average": "0",
+            "mem": "2.1",
+            "cmdline": "/usr/lib/ffmpeg/8.0/bin/ffmpeg -threads 1 -f rawvideo -pix_fmt yuv420p -video_size 1280x720 -i pipe: -threads 1 -f mpegts -s 1280x720 -codec:v mpeg1video -q 8 -bf 0 pipe:"
+        },
+        "627": {
+            "cpu": "0.3",
+            "cpu_average": "0",
+            "mem": "6.8",
+            "cmdline": "frigate.process:front"
+        },
+        "692": {
+            "cpu": "0.1",
+            "cpu_average": "0",
+            "mem": "6.5",
+            "cmdline": "frigate.capture:front"
+        },
+        "737": {
+            "cpu": "1.1",
+            "cpu_average": "0",
+            "mem": "1.8",
+            "cmdline": "/usr/lib/ffmpeg/8.0/bin/ffmpeg -hide_banner -loglevel warning -threads 2 -re -stream_loop -1 -fflags +genpts -i /media/frigate/test.mp4 -f segment -segment_time 10 -segment_format mp4 -reset_timestamps 1 -strftime 1 -c:v copy -c:a aac /tmp/cache/front@%Y%m%d%H%M%S%z.mp4 -r 2 -vf fps=2,scale=640:360 -threads 2 -f rawvideo -pix_fmt yuv420p pipe:"
+        },
+        "764": {
+            "cpu": "0.1",
+            "cpu_average": "0",
+            "mem": "6.8",
+            "cmdline": "frigate.process:garage"
+        },
+        "840": {
+            "cpu": "0.1",
+            "cpu_average": "0",
+            "mem": "6.5",
+            "cmdline": "frigate.capture:garage"
+        },
+        "887": {
+            "cpu": "0.9",
+            "cpu_average": "0",
+            "mem": "1.9",
+            "cmdline": "/usr/lib/ffmpeg/8.0/bin/ffmpeg -hide_banner -loglevel warning -threads 2 -re -stream_loop -1 -fflags +genpts -i /media/frigate/test.mp4 -f segment -segment_time 10 -segment_format mp4 -reset_timestamps 1 -strftime 1 -c:v copy -c:a aac /tmp/cache/garage@%Y%m%d%H%M%S%z.mp4 -r 1 -vf fps=1,scale=640:360 -threads 2 -f rawvideo -pix_fmt yuv420p pipe:"
+        }
+    },
+    "service": {
+        "uptime": 236,
+        "version": "0.18.3-a19e23a",
+        "latest_version": "0.18.3",
+        "storage": {
+            "/media/frigate/recordings": {
+                "total": 64263.1,
+                "used": 226.9,
+                "free": 64036.2,
+                "mount_type": "tmpfs"
+            },
+            "/media/frigate/clips": {
+                "total": 64263.1,
+                "used": 226.9,
+                "free": 64036.2,
+                "mount_type": "tmpfs"
+            },
+            "/tmp/cache": {
+                "total": 155914.0,
+                "used": 145307.3,
+                "free": 3873.3,
+                "mount_type": "overlay"
+            },
+            "/dev/shm": {
+                "total": 128.0,
+                "used": 11.7,
+                "free": 116.3,
+                "mount_type": "tmpfs",
+                "available": 78.0,
+                "camera_frame_size": 4.4,
+                "shm_frame_count": 17,
+                "min_shm": 138
+            }
+        },
+        "last_updated": 1795127119
+    },
+    "processes": {
+        "recording": {
+            "pid": 467,
+            "cpu": "0.1",
+            "mem": "7.1"
+        },
+        "review_segment": {
+            "pid": 479,
+            "cpu": "0.1",
+            "mem": "6.8"
+        },
+        "go2rtc": {
+            "pid": 129,
+            "cpu": "0.0",
+            "mem": "1.0"
+        },
+        "embeddings": {
+            "pid": 490,
+            "cpu": "0.1",
+            "mem": "8.1"
+        },
+        "audio_detector": {
+            "pid": 598,
+            "cpu": "0.0",
+            "mem": "6.5"
+        }
+    }
+}

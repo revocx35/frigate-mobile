@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status bar icon (white silhouette): the same camera as the launcher icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M3,5h18v2.5H3z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4.5,8.5h15a7.5,7.5 0 0 1 -15,0z M12,9.5a3,3 0 1,0 0.001,0z" android:fillType="evenOdd" />
+</vector>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HTTPS only: passwords, session tokens and camera video never travel in cleartext. Frigate's authenticated
+  port 8971 serves TLS (self-signed by default); the app pins that certificate after the user confirms its
+  fingerprint (data/ServerTrust.kt). User-installed CAs are trusted too, for servers behind a private CA.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

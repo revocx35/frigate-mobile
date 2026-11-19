@@ -1,0 +1,8 @@
+{
+    "username": "admin",
+    "role": "admin",
+    "allowed_cameras": [
+        "garage",
+        "front"
+    ]
+}

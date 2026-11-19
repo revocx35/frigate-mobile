@@ -1,0 +1,48 @@
+[
+    {
+        "id": "1795126902.662355-03axi9",
+        "camera": "garage",
+        "start_time": 1795126902.662355,
+        "end_time": 1795126912.662355,
+        "severity": "alert",
+        "thumb_path": "/media/frigate/clips/review/thumb-garage-1795126902.662355-03axi9.webp",
+        "data": {
+            "detections": [
+                "1795126902.662355-1n73eo"
+            ],
+            "objects": [
+                "car"
+            ],
+            "verified_objects": [],
+            "sub_labels": [],
+            "zones": [],
+            "audio": [],
+            "thumb_time": null,
+            "metadata": null
+        },
+        "has_been_reviewed": false
+    },
+    {
+        "id": "1795126902.645324-bt19q6",
+        "camera": "front",
+        "start_time": 1795126902.645324,
+        "end_time": 1795126922.645324,
+        "severity": "alert",
+        "thumb_path": "/media/frigate/clips/review/thumb-front-1795126902.645324-bt19q6.webp",
+        "data": {
+            "detections": [
+                "1795126902.645324-jh07t0"
+            ],
+            "objects": [
+                "person"
+            ],
+            "verified_objects": [],
+            "sub_labels": [],
+            "zones": [],
+            "audio": [],
+            "thumb_time": null,
+            "metadata": null
+        },
+        "has_been_reviewed": false
+    }
+]

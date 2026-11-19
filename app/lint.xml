@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- ServerTrust delegates to Android's trust manager first and only adds exact certificates the user pinned
+         for one host after checking the fingerprint (see ARCHITECTURE.md, threat model). -->
+    <issue id="CustomX509TrustManager" severity="ignore" />
+    <!-- Intentional: some people run Frigate behind a private CA installed on the phone (see ARCHITECTURE.md). -->
+    <issue id="AcceptsUserCertificates" severity="ignore" />
+    <!-- Ignored below API 33, where the app falls back to the regular back handling. -->
+    <issue id="UnusedAttribute" severity="ignore" />
+    <!-- AAPT doesn't resolve the adaptive icon from plain mipmap-anydpi here; keep the -v26 folder. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>
