@@ -50,6 +50,7 @@ import io.github.revocx35.frigatemobile.data.AppGraph
 import io.github.revocx35.frigatemobile.data.ServerTrust
 import io.github.revocx35.frigatemobile.data.SignInResult
 import io.github.revocx35.frigatemobile.ui.LocalNetworkAccess
+import io.github.revocx35.frigatemobile.ui.system.AppLogo
 import io.github.revocx35.frigatemobile.ui.theme.AppIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -112,7 +113,7 @@ fun LoginScreen(graph: AppGraph, reason: String?) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(32.dp))
-            Icon(AppIcons.Videocam, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(56.dp))
+            AppLogo(graph, 64.dp)
             Spacer(Modifier.height(12.dp))
             Text("Frigate Mobile", style = MaterialTheme.typography.headlineMedium)
             Text("Sign in to your Frigate NVR", color = MaterialTheme.colorScheme.onSurfaceVariant)

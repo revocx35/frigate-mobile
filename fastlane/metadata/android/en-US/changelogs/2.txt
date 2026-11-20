@@ -1,0 +1,1 @@
+New: choose the app icon in System > App icon. Pick the built-in camera or the new frigate-bird icon (changes the launcher icon), or your own image: it is shown in the app and can be added to the home screen as a shortcut. After updating, your launcher may need the app icon added again.

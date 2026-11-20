@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Alternative launcher icon: original frigate-bird artwork (docs/logo/frigate-bird.svg), inside the safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="0.135" android:scaleY="0.135" android:translateX="19.44" android:translateY="19.84">
+        <path android:fillColor="#FFFFFF" android:pathData="M256 176 C266 176 272 186 272 200 C272 206 271 212 270 218 C298 210 326 190 350 158 L360 146 C392 196 432 230 480 252 C442 252 404 244 372 226 C346 244 314 262 284 272 C282 294 282 318 288 340 L310 410 L270 362 L256 344 L242 362 L202 410 L224 340 C230 318 230 294 228 272 C198 262 166 244 140 226 C108 244 70 252 32 252 C80 230 120 196 152 146 L162 158 C186 190 214 210 242 218 C241 212 240 206 240 200 C240 186 246 176 256 176 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M246 190 C245 168 247 146 251 128 C253 120 260 116 267 119 C273 122 274 130 269 135 C267 129 263 127 260 130 C259 150 263 170 266 190 Z" />
+        <path android:fillColor="#1E3A8A" android:pathData="M256,194 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    </group>
+</vector>

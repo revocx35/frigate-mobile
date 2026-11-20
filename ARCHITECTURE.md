@@ -20,6 +20,8 @@ app/
   data/ServerTrust    X509 trust manager + hostname verifier: system CAs, plus per-host pinned certificates
   data/SettingsStore  theme, live quality, boxes, notifications, last notified review time
   data/AlertWorker    WorkManager job: polls /api/review for new alerts, posts notifications
+  data/AppIcon        icon choice: enables one launcher <activity-alias> (.LauncherDefault/.LauncherBird); custom
+                      image stored in filesDir/logo (cropped square PNG, 20 MB input cap) + pinned shortcut
   ui/AppRoot          login vs. main shell, Navigation Compose routes
   ui/cameras          grid (latest.jpg refreshed every 10 s), camera screen (MJPEG live, switches, activity)
   ui/review           review queue + review item (HLS playback, tracked objects, snapshots)
@@ -73,6 +75,11 @@ app/
   the player restarts once with software decoders first, at the same position.
 - **Notifications by polling** (WorkManager, 15 min): Frigate's own push uses Web Push for browsers. No foreground
   service, nothing runs while notifications are off.
+- **App icon.** Android can't set an arbitrary image as an app's launcher icon. Built-in icons switch via
+  activity-aliases (one enabled at a time; enable the new one before disabling the old). A custom image is picked
+  with the system photo picker (no storage permission), stored privately, shown in the app and offered as a pinned
+  shortcut (inset into the adaptive-icon safe zone). The bird is original artwork (`docs/logo/frigate-bird.svg`),
+  deliberately not Frigate's trademarked logo.
 - **Single account.** Most households run one Frigate; it keeps trust/session handling simple.
 
 ## 5. Threat model

@@ -19,7 +19,7 @@ and the threat model are in `ARCHITECTURE.md`.
 - JDK 21 is required (`export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`; JDK 25 here has no javac toolchain
   capability for AGP). SDK at `/opt/android-sdk` via `local.properties` (not committed).
 - On the dev LXC wrap heavy jobs: `heavy ./gradlew …` (capped CPU/RAM).
-- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (43 tests).
+- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (48 tests; the live one is skipped without a server).
 - Live tests: `eval "$(scripts/dev-frigate.sh up)"` (Frigate `stable` on https://127.0.0.1:18971, two looping test
   cameras, admin password from its first-start log, cert fingerprint exported), rerun `:core:test`.
   `scripts/dev-frigate.sh down` removes it. The image is ~9 GB on disk: remove it when done if disk is tight.
@@ -63,3 +63,5 @@ Losing the keystore means users must uninstall to update.
 - Compose dialogs are separate windows: their test tags are not resource ids for UI Automator; match by text.
 - Robolectric needs `WorkManagerTestInitHelper` (done in `TestApp`).
 - `mipmap-anydpi-v26` must keep its `-v26` suffix.
+- Launcher entries are the activity-aliases `.LauncherDefault` / `.LauncherBird` (MainActivity has no LAUNCHER
+  filter). Never rename them: home-screen icons point at them. Don't use Frigate's own logo as an icon (trademark).

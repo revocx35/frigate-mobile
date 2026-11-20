@@ -21,6 +21,7 @@ data class AppSettings(
     val showBoxes: Boolean = false,
     val alertNotifications: Boolean = false,
     val notifyDetections: Boolean = false,
+    val icon: IconChoice = IconChoice.Default,
 )
 
 class SettingsStore(context: Context) {
@@ -34,6 +35,7 @@ class SettingsStore(context: Context) {
         showBoxes = sp.getBoolean("show_boxes", false),
         alertNotifications = sp.getBoolean("alert_notifications", false),
         notifyDetections = sp.getBoolean("notify_detections", false),
+        icon = enumOr(sp.getString("icon", null), IconChoice.Default),
     )
 
     fun update(change: (AppSettings) -> AppSettings) {
@@ -44,6 +46,7 @@ class SettingsStore(context: Context) {
             putBoolean("show_boxes", s.showBoxes)
             putBoolean("alert_notifications", s.alertNotifications)
             putBoolean("notify_detections", s.notifyDetections)
+            putString("icon", s.icon.name)
         }
         _settings.value = s
     }

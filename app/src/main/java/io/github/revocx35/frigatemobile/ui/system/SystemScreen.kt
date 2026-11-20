@@ -127,6 +127,9 @@ fun SystemScreen(graph: AppGraph) {
                 graph.settings.update { it.copy(theme = ThemeMode.entries[i]) }
             }
 
+            SectionTitle("App icon")
+            AppIconSection(graph)
+
             SectionTitle("Account")
             val account = conn.account
             ListItem(
@@ -150,7 +153,7 @@ fun SystemScreen(graph: AppGraph) {
             ListItem(
                 headlineContent = { Text("Frigate Mobile ${BuildConfig.VERSION_NAME}") },
                 supportingContent = { Text("Unofficial client for Frigate NVR. Open source, MIT license.") },
-                leadingContent = { Icon(AppIcons.Info, null) },
+                leadingContent = { AppLogo(graph, 24.dp) },
             )
         }
     }

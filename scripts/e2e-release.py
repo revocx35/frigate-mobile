@@ -129,6 +129,16 @@ def type_into(value, secret=False, **kw):
     raise AssertionError(f"could not type into {kw}: got {got!r}")
 
 
+def scroll_to(rid, swipes=8):
+    """Scrolls the screen up until an element with this resource id is visible."""
+    for _ in range(swipes):
+        if exists(rid=rid):
+            return
+        adb("shell", "input", "swipe", "500", "1700", "500", "900", "400")
+        time.sleep(0.6)
+    find(rid=rid, timeout=5)
+
+
 def key(code):
     adb("shell", "input", "keyevent", str(code))
     time.sleep(0.6)
@@ -297,6 +307,36 @@ def run(apk):
         find(text="Allow", timeout=15)
         tap(text="Allow")
     shot("system")
+
+    step("app icon: switch to the bird, then pick a custom image")
+    scroll_to("icon_Bird")
+    tap(rid="icon_Bird")
+    time.sleep(2)
+    pkg = adb("shell", "dumpsys", "package", PKG)
+    enabled = pkg.split("enabledComponents:")[1].split("disabledComponents:")[0] if "enabledComponents:" in pkg else ""
+    assert "LauncherBird" in enabled, "bird launcher entry not enabled"
+    shot("icon_bird")
+    png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "logo", "frigate-bird.png")
+    adb("push", png, "/sdcard/Pictures/e2e-logo.png")
+    adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file:///sdcard/Pictures/e2e-logo.png", check=False)
+    time.sleep(2)
+    scroll_to("icon_Custom")
+    tap(rid="icon_Custom")
+    photo = find(contains="Photo taken", timeout=30)  # the system photo picker's thumbnails
+    x, y = center(photo)
+    adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(1.5)
+    if exists(text="Done"):  # newer photo pickers confirm the selection
+        tap(text="Done")
+    for _ in range(4):
+        if exists(rid="pin_shortcut") or exists(rid="remove_custom_icon"):
+            break
+        adb("shell", "input", "swipe", "500", "1800", "500", "900")
+    find(rid="remove_custom_icon", timeout=20)
+    shot("icon_custom")
+    tap(rid="remove_custom_icon")
+    scroll_to("icon_Default")
+    adb("shell", "rm", "/sdcard/Pictures/e2e-logo.png", check=False)
 
     step("restart the app: the stored session must survive")
     adb("shell", "am", "force-stop", PKG)

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import io.github.revocx35.frigatemobile.data.AppGraph
+import io.github.revocx35.frigatemobile.data.IconChoice
 import io.github.revocx35.frigatemobile.data.ServerTrust
 import io.github.revocx35.frigatemobile.ui.AppRoot
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -103,6 +104,19 @@ class AppUiTest {
         compose.waitForTag("switch_detect")
         compose.onNodeWithTag("recordings").performClick()
         compose.waitForTag("recording_days")
+    }
+
+    @Test fun birdIconSwitchesLauncherEntry() {
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_front")
+        compose.onNodeWithTag("tab_system").performClick()
+        compose.waitForTag("icon_Bird")
+        compose.onNodeWithTag("icon_Bird").performScrollTo().performClick()
+        compose.waitUntil(5_000) { graph.settings.settings.value.icon == IconChoice.Bird }
+        assertEquals(".LauncherBird", graph.appIcon.enabledAlias())
+        compose.onNodeWithTag("icon_Default").performScrollTo().performClick()
+        compose.waitUntil(5_000) { graph.appIcon.enabledAlias() == ".LauncherDefault" }
     }
 
     @Test fun signOutForgetsSecrets() {

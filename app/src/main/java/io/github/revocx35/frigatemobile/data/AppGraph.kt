@@ -49,6 +49,7 @@ class AppGraph(val context: Context, cipher: SecretCipher = KeystoreCipher()) {
     val accounts = AccountStore(context, cipher)
     val settings = SettingsStore(context)
     val trust = ServerTrust(context)
+    val appIcon = AppIcon(context)
 
     /** No cookies jar, no redirects to other schemes; certificates checked by [trust]. */
     val baseHttp: OkHttpClient = OkHttpClient.Builder()

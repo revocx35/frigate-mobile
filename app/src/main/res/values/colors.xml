@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="brand">#1D4ED8</color>
+    <color name="bird_background">#2563EB</color>
     <color name="splash_light">#FAF8FF</color>
     <color name="splash_dark">#121318</color>
 </resources>

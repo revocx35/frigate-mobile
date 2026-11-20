@@ -33,6 +33,9 @@ Frigate server's API directly, with no cloud service in between and no tracking.
   per-camera FPS.
 - **Notifications (optional):** new unreviewed alerts (optionally detections) with thumbnail, checked every 15
   minutes. Thumbnails are hidden on the lock screen.
+- **App icon:** the built-in camera or frigate-bird icon (changes the launcher icon), or your own image, shown
+  in the app and addable to the home screen as a shortcut (Android doesn't let apps use an arbitrary image as their
+  launcher icon).
 - Light/dark theme, Material You colors.
 
 ## Install
