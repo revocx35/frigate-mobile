@@ -39,6 +39,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.revocx35.frigatemobile.core.CameraInfo
+import io.github.revocx35.frigatemobile.data.AppSettings
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import io.github.revocx35.frigatemobile.core.FrigateConfig
 import io.github.revocx35.frigatemobile.core.FrigateStats
 import io.github.revocx35.frigatemobile.ui.components.EmptyBox
@@ -52,9 +56,9 @@ import kotlinx.coroutines.coroutineScope
 
 data class CamerasData(val config: FrigateConfig, val stats: FrigateStats?)
 
-/** All cameras with a frame that refreshes every two seconds while the screen is visible. */
+/** All cameras, playing live (go2rtc sub stream) or with a frame every two seconds, while the screen is visible. */
 @Composable
-fun CamerasScreen(onOpen: (String) -> Unit) {
+fun CamerasScreen(settings: AppSettings, onOpen: (String) -> Unit) {
     val conn = LocalConnection.current
     val loader = rememberLoader(conn) {
         coroutineScope {
@@ -93,7 +97,7 @@ fun CamerasScreen(onOpen: (String) -> Unit) {
                     modifier = Modifier.fillMaxSize().testTag("cameras"),
                 ) {
                     items(cameras, key = { it.name }) { cam ->
-                        CameraCard(cam, online = data.stats?.cameras?.firstOrNull { it.name == cam.name }?.online, tick = tick) { onOpen(cam.name) }
+                        CameraCard(cam, settings, online = data.stats?.cameras?.firstOrNull { it.name == cam.name }?.online, tick = tick) { onOpen(cam.name) }
                     }
                 }
             }
@@ -102,15 +106,30 @@ fun CamerasScreen(onOpen: (String) -> Unit) {
 }
 
 @Composable
-private fun CameraCard(cam: CameraInfo, online: Boolean?, tick: Long, onClick: () -> Unit) {
+private fun CameraCard(cam: CameraInfo, settings: AppSettings, online: Boolean?, tick: Long, onClick: () -> Unit) {
     val conn = LocalConnection.current
     val status = LocalStatusColors.current
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick).testTag("camera_${cam.name}")) {
         Box(Modifier.fillMaxWidth().aspectRatio(cam.aspectRatio)) {
             if (cam.enabled) {
-                // `tick` changes on pull-to-refresh: restart polling at once.
+                // `tick` changes on pull-to-refresh: restart the stream / polling at once.
                 androidx.compose.runtime.key(tick) {
-                    LatestFrame(cam.name, FRAME_HEIGHT, cam.title, Modifier.fillMaxSize(), intervalMs = REFRESH_MS)
+                    val stills: @Composable () -> Unit = { LatestFrame(cam.name, FRAME_HEIGHT, cam.title, Modifier.fillMaxSize(), intervalMs = REFRESH_MS) }
+                    val stream = gridStream(cam).takeIf { settings.liveGrid && settings.liveQuality.full }
+                    if (stream != null) {
+                        LiveView(
+                            go2rtcStream = stream,
+                            mjpegUrl = "",
+                            contentDescription = cam.title,
+                            muted = true,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            placeholder = { conn.frames[cam.name]?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) } },
+                            fallbackContent = stills,
+                        )
+                    } else {
+                        stills()
+                    }
                 }
             } else {
                 EmptyBox(AppIcons.Videocam, "Camera disabled")
@@ -143,6 +162,12 @@ private fun Badge(icon: androidx.compose.ui.graphics.vector.ImageVector, descrip
         Icon(icon, description, modifier = Modifier.padding(4.dp).size(14.dp))
     }
 }
+
+/**
+ * The go2rtc stream for a grid card: the camera's last `live.streams` entry when it has several (by convention the
+ * sub stream, e.g. "sd" or "Stream 2"), else its only one. Light enough to play several at once.
+ */
+private fun gridStream(cam: CameraInfo): String? = cam.liveStreams.values.lastOrNull()
 
 private const val REFRESH_MS = 2_000L
 /** Frigate scales latest.jpg from the detect stream; 480 px is sharp on a phone-wide card. */

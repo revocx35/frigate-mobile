@@ -59,11 +59,14 @@ class MseStream private constructor(private val queue: LinkedBlockingQueue<Any>)
     companion object {
         private val END = Any()
 
-        /** Codecs Frigate's web UI offers; HEVC only when the device can decode it. */
-        fun codecs(hevc: Boolean): String = buildList {
+        /**
+         * Codecs Frigate's web UI offers; HEVC only when the device can decode it. Without [audio] go2rtc sends video
+         * only: an audio track drives the player's clock, and cameras' PCMA audio (sent as 8 kHz FLAC) stalls it.
+         */
+        fun codecs(hevc: Boolean, audio: Boolean = true): String = buildList {
             addAll(listOf("avc1.640029", "avc1.64002A", "avc1.640033"))
             if (hevc) add("hvc1.1.6.L153.B0")
-            addAll(listOf("mp4a.40.2", "mp4a.40.5", "flac", "opus"))
+            if (audio) addAll(listOf("mp4a.40.2", "mp4a.40.5", "flac", "opus"))
         }.joinToString(",")
 
         /**

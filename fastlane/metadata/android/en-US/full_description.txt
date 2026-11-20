@@ -1,7 +1,7 @@
 Frigate Mobile is an unofficial, native Android client for the Frigate network video recorder. It talks straight to your own Frigate server; there is no cloud service in between and no tracking.
 
 Features:
-* Cameras: every camera with a frame that refreshes every 2 seconds while you look, online status and recording/detection badges.
+* Cameras: every camera live on the home screen (sub stream via go2rtc), or a frame every 2 seconds, online status and recording/detection badges.
 * Live view: the camera's own stream via Frigate's go2rtc (full resolution and frame rate, optional sound, main/sub stream), or Frigate's MJPEG stream as a fallback. Full screen in landscape.
 * PTZ: pan, tilt, zoom and presets for ONVIF cameras.
 * Review: alerts and detections, newest first, filtered to unreviewed items and by camera. Mark all as reviewed.

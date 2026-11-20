@@ -21,7 +21,7 @@ and the threat model are in `ARCHITECTURE.md`.
 - JDK 21 is required (`export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`; JDK 25 here has no javac toolchain
   capability for AGP). SDK at `/opt/android-sdk` via `local.properties` (not committed).
 - On the dev LXC wrap heavy jobs: `heavy ./gradlew …` (capped CPU/RAM).
-- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (57 tests; 5 skipped: the live one without a server, screenshots unless recording).
+- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (58 tests; 5 skipped: the live one without a server, screenshots unless recording).
 - Live tests: `eval "$(scripts/dev-frigate.sh up)"` (Frigate `stable` on https://127.0.0.1:18971, two looping test
   cameras, admin password from its first-start log, cert fingerprint exported), rerun `:core:test`.
   `scripts/dev-frigate.sh down` removes it. The image is ~9 GB on disk: remove it when done if disk is tight.
@@ -69,6 +69,11 @@ Losing the keystore means users must uninstall to update.
   from user input; take it from `live.streams`.
 - PTZ has no REST API: it's `<camera>/ptz` on `/ws`. The dev Frigate has no ONVIF camera, so PTZ is covered by
   `LiveSocketsTest` and `AppUiTest.ptzHoldMovesAndReleaseStops` (fake server), not by the e2e run.
+- Grid cards are clickable Cards: their inner test tags are merged away (Robolectric/UI Automator see only
+  `camera_<name>`). The grid's go2rtc stream is the camera's last `live.streams` entry.
+- Never put audio codecs in the MSE request while muted (see ARCHITECTURE "Audio only when unmuted"): the dev Frigate's
+  "front" stream carries PCMA audio on purpose, and the e2e run checks frame smoothness muted and unmuted.
+- PTZ taps: `MIN_MOVE_MS` (700) in `PtzControls.kt`; shorter moves are ignored by Tapo cameras.
 - The live setting is stored under `live_mode` (1.1.0+); the old `live_quality` key is ignored on purpose so 1.0.x
   users move to the full stream.
 - Compose dialogs are separate windows: their test tags are not resource ids for UI Automator; match by text.

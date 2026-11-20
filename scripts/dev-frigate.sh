@@ -3,7 +3,8 @@
 #   scripts/dev-frigate.sh up     -> start Frigate (TLS + auth on 127.0.0.1:18971), print the test env vars
 #   scripts/dev-frigate.sh down   -> remove the container and its data
 # Two cameras loop a generated test video; the CPU detector runs at 2 fps to stay light. "front" also has a go2rtc
-# stream (720p, 25 fps, from live.mp4) for the full-quality live view; "garage" has none (MJPEG fallback).
+# stream (720p, 25 fps + PCMA audio like most IP cameras, from live.mp4) for the full-quality live view; "garage"
+# has none (MJPEG fallback).
 # Inside the Android emulator the server is https://10.0.2.2:18971.
 set -euo pipefail
 
@@ -22,8 +23,8 @@ case "${1:-up}" in
         -g 20 "$DIR/media/test.mp4"
     fi
     if [ ! -f "$DIR/media/live.mp4" ]; then
-      ffmpeg -loglevel error -f lavfi -i "testsrc2=size=1280x720:rate=25" -t 600 -c:v libx264 -preset veryfast -pix_fmt yuv420p \
-        -g 50 "$DIR/media/live.mp4"
+      ffmpeg -loglevel error -f lavfi -i "testsrc2=size=1280x720:rate=25" -f lavfi -i "sine=frequency=440:sample_rate=8000" \
+        -t 600 -c:v libx264 -preset veryfast -pix_fmt yuv420p -g 50 -c:a aac -shortest "$DIR/media/live.mp4"
     fi
     cat > "$DIR/config/config.yml" <<YAML
 mqtt:
@@ -49,7 +50,7 @@ snapshots:
 go2rtc:
   streams:
     front:
-      - ffmpeg:/media/frigate/live.mp4#video=copy
+      - ffmpeg:/media/frigate/live.mp4#video=copy#audio=pcma
 cameras:
   front:
     ffmpeg:

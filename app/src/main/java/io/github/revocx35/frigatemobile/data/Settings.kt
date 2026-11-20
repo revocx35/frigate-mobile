@@ -24,6 +24,8 @@ data class AppSettings(
     val theme: ThemeMode = ThemeMode.System,
     val liveQuality: LiveQuality = LiveQuality.Full,
     val showBoxes: Boolean = false,
+    /** Camera grid plays each visible camera live (go2rtc sub stream) instead of a frame every 2 s. */
+    val liveGrid: Boolean = true,
     val alertNotifications: Boolean = false,
     val notifyDetections: Boolean = false,
     val icon: IconChoice = IconChoice.Default,
@@ -38,6 +40,7 @@ class SettingsStore(context: Context) {
         theme = enumOr(sp.getString("theme", null), ThemeMode.System),
         liveQuality = enumOr(sp.getString("live_mode", null), LiveQuality.Full),
         showBoxes = sp.getBoolean("show_boxes", false),
+        liveGrid = sp.getBoolean("live_grid", true),
         alertNotifications = sp.getBoolean("alert_notifications", false),
         notifyDetections = sp.getBoolean("notify_detections", false),
         icon = enumOr(sp.getString("icon", null), IconChoice.Default),
@@ -49,6 +52,7 @@ class SettingsStore(context: Context) {
             putString("theme", s.theme.name)
             putString("live_mode", s.liveQuality.name)
             putBoolean("show_boxes", s.showBoxes)
+            putBoolean("live_grid", s.liveGrid)
             putBoolean("alert_notifications", s.alertNotifications)
             putBoolean("notify_detections", s.notifyDetections)
             putString("icon", s.icon.name)

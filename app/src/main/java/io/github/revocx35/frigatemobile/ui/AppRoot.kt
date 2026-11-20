@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -81,6 +82,7 @@ private fun MainNav(graph: AppGraph, conn: Connection, settings: AppSettings, op
         composable("main") {
             MainTabs(
                 graph = graph,
+                settings = settings,
                 onOpenCamera = { nav.navigate("camera/${enc(it)}") },
                 onOpenReview = { nav.navigate("review/${enc(it)}") },
             )
@@ -122,7 +124,7 @@ private fun MainNav(graph: AppGraph, conn: Connection, settings: AppSettings, op
 }
 
 @Composable
-private fun MainTabs(graph: AppGraph, onOpenCamera: (String) -> Unit, onOpenReview: (String) -> Unit) {
+private fun MainTabs(graph: AppGraph, settings: AppSettings, onOpenCamera: (String) -> Unit, onOpenReview: (String) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
         bottomBar = {
@@ -133,9 +135,10 @@ private fun MainTabs(graph: AppGraph, onOpenCamera: (String) -> Unit, onOpenRevi
             }
         },
     ) { padding ->
-        Box(Modifier.padding(bottom = padding.calculateBottomPadding()).consumeWindowInsets(padding)) {
+        // Consume only the bottom bar's inset: each tab's own TopAppBar still needs the status bar inset.
+        Box(Modifier.padding(bottom = padding.calculateBottomPadding()).consumeWindowInsets(PaddingValues(bottom = padding.calculateBottomPadding()))) {
             when (tab) {
-                0 -> CamerasScreen(onOpen = onOpenCamera)
+                0 -> CamerasScreen(settings, onOpen = onOpenCamera)
                 1 -> ReviewScreen(onOpen = onOpenReview)
                 else -> SystemScreen(graph)
             }

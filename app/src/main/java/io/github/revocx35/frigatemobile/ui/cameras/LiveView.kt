@@ -82,9 +82,15 @@ fun LiveView(
     muted: Boolean,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
+    /** Shown behind the spinner until the first frame is decoded (e.g. the last still frame). */
+    placeholder: (@Composable () -> Unit)? = null,
+    /** Replaces the MJPEG fallback (and its explanation), e.g. still frames in the camera grid. */
+    fallbackContent: (@Composable () -> Unit)? = null,
 ) {
     var fallback by remember(go2rtcStream) { mutableStateOf<String?>(null) }
-    if (go2rtcStream == null || fallback != null) {
+    if (fallbackContent != null && (go2rtcStream == null || fallback != null)) {
+        Box(modifier) { fallbackContent() }
+    } else if (go2rtcStream == null || fallback != null) {
         Box(modifier) {
             MjpegView(mjpegUrl, contentDescription, Modifier.fillMaxSize(), contentScale)
             fallback?.let { reason ->
@@ -99,7 +105,7 @@ fun LiveView(
             }
         }
     } else {
-        MseView(go2rtcStream, contentDescription, muted, modifier, contentScale) { fallback = it }
+        MseView(go2rtcStream, contentDescription, muted, modifier, contentScale, placeholder) { fallback = it }
     }
 }
 
@@ -117,6 +123,7 @@ private fun MseView(
     muted: Boolean,
     modifier: Modifier,
     contentScale: ContentScale,
+    placeholder: (@Composable () -> Unit)?,
     onUnavailable: (String) -> Unit,
 ) {
     val conn = LocalConnection.current
@@ -131,14 +138,17 @@ private fun MseView(
     var player by remember { mutableStateOf<ExoPlayer?>(null) }
     var showingVideo by remember(stream) { mutableStateOf(false) }
     var status by remember(stream) { mutableStateOf<String?>(null) }
-    val codecs = remember { MseStream.codecs(hevc = hasDecoder("video/hevc")) }
+    // Sound is best effort: if the audio decoder fails or the audio clock stalls, play video only.
+    var noSound by remember(stream) { mutableStateOf(false) }
+    val withAudio = !muted && !noSound
+    val hevc = remember { hasDecoder("video/hevc") }
 
-    LaunchedEffect(stream, active, generation, software) {
+    LaunchedEffect(stream, active, generation, software, withAudio) {
         if (!active) return@LaunchedEffect
         if (failures > 0) delay(min(15_000L, 1_000L shl failures.coerceAtMost(4)))
         val url = conn.client.urls.mse(stream)
         val mse = try {
-            MseStream.open(conn.http, url, codecs)
+            MseStream.open(conn.http, url, MseStream.codecs(hevc, audio = withAudio))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -161,7 +171,6 @@ private fun MseView(
             .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0)) // reconnect ourselves, with a new socket
             .createMediaSource(MediaItem.fromUri(url.toString()))
         val exo = ExoPlayer.Builder(context, renderers).setLoadControl(load).build()
-        exo.volume = if (muted) 0f else 1f
         exo.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 everPlayed = true
@@ -172,6 +181,12 @@ private fun MseView(
 
             override fun onPlayerError(e: PlaybackException) {
                 showingVideo = false
+                val audioFailed = e is ExoPlaybackException && e.type == ExoPlaybackException.TYPE_RENDERER &&
+                    e.rendererFormat?.sampleMimeType?.startsWith("audio/") == true
+                if (audioFailed) {
+                    noSound = true // reconnects without audio (withAudio is a key)
+                    return
+                }
                 val decoder = e.errorCode in PlaybackException.ERROR_CODE_DECODER_INIT_FAILED..PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED ||
                     (e is ExoPlaybackException && e.type == ExoPlaybackException.TYPE_RENDERER)
                 when {
@@ -193,8 +208,17 @@ private fun MseView(
         try {
             // Keep the delay to the camera short: a stalled network leaves frames buffered, play them off quickly.
             launch {
+                var lastPosition = -1L
+                var stuck = 0
                 while (isActive) {
                     delay(1_000)
+                    // Audio clock stalled (video waits for audio that arrives in bursts): drop the sound.
+                    if (withAudio && exo.isPlaying && exo.currentPosition == lastPosition) {
+                        if (++stuck >= 3) noSound = true
+                    } else {
+                        stuck = 0
+                    }
+                    lastPosition = exo.currentPosition
                     val lag = exo.bufferedPosition - exo.currentPosition
                     val speed = when {
                         lag > 4_000 -> 1.5f
@@ -211,7 +235,6 @@ private fun MseView(
             mse.close()
         }
     }
-    LaunchedEffect(player, muted) { player?.volume = if (muted) 0f else 1f }
 
     Box(modifier.background(Color.Black).testTag("live").semantics { this.contentDescription = contentDescription }, contentAlignment = Alignment.Center) {
         player?.let { exo ->
@@ -232,7 +255,18 @@ private fun MseView(
         }
         if (showingVideo) {
             Box(Modifier.fillMaxSize().testTag("live_video"))
+            if (noSound && !muted) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.6f),
+                    contentColor = Color.White,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).testTag("no_sound"),
+                ) {
+                    Text("No sound for this camera", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                }
+            }
         } else {
+            placeholder?.let { Box(Modifier.fillMaxSize()) { it() } }
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(32.dp))
                 status?.let {

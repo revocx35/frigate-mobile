@@ -120,6 +120,13 @@ fun SystemScreen(graph: AppGraph) {
                 graph.settings.update { it.copy(liveQuality = LiveQuality.entries[i]) }
             }
             ListItem(
+                headlineContent = { Text("Live camera grid") },
+                supportingContent = { Text("Cameras play live on the home screen (sub stream). Off: a still frame every 2 s, less data.") },
+                trailingContent = {
+                    Switch(checked = settings.liveGrid, onCheckedChange = { on -> graph.settings.update { it.copy(liveGrid = on) } }, modifier = Modifier.testTag("live_grid_switch"))
+                },
+            )
+            ListItem(
                 headlineContent = { Text("Show detection boxes") }, supportingContent = { Text("MJPEG live view only") },
                 trailingContent = { Switch(checked = settings.showBoxes, onCheckedChange = { on -> graph.settings.update { it.copy(showBoxes = on) } }) },
             )

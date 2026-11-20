@@ -1,0 +1,4 @@
+Home screen: every camera now plays live (its sub stream through go2rtc, muted). Cameras without go2rtc keep a still frame every 2 s; switch it off in System > Live camera grid to save data.
+Fixed: live view of cameras with a microphone was very laggy. Video now plays on its own; sound is added only when you unmute, and dropped automatically if the camera's audio can't be played.
+Fixed: PTZ arrows didn't move the camera on a short tap. A tap now nudges the camera, holding keeps it moving.
+Fixed: screen titles overlapped the status bar.

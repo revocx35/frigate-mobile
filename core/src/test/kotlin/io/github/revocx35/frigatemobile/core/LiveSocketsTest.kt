@@ -70,6 +70,8 @@ class LiveSocketsTest {
         val codecs = hello["value"]!!.jsonPrimitive.content
         assertTrue(codecs.contains("avc1.640029") && !codecs.contains("hvc1"))
         assertTrue(MseStream.codecs(hevc = true).contains("hvc1"))
+        val videoOnly = MseStream.codecs(hevc = false, audio = false)
+        assertTrue(videoOnly.contains("avc1") && !videoOnly.contains("mp4a") && !videoOnly.contains("flac"))
     }
 
     @Test fun mseRefusedStreamIsForbidden() = runBlocking {

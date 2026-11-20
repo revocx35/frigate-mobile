@@ -25,8 +25,9 @@ app/
   data/AppIcon        icon choice: enables one launcher <activity-alias> (.LauncherDefault/.LauncherBird); custom
                       image stored in filesDir/logo (cropped square PNG, 20 MB input cap) + pinned shortcut
   ui/AppRoot          login vs. main shell, Navigation Compose routes
-  ui/cameras          grid (LatestFrame: latest.jpg polled every 2 s through the session client, last frame kept per
-                      camera in Connection.frames), camera screen (LiveView: MSE player with MJPEG fallback, stream
+  ui/cameras          grid (live: LiveView on the camera's last live.streams entry = sub stream, muted, cropped;
+                      LatestFrame fallback: latest.jpg polled every 2 s through the session client, last frame kept
+                      per camera in Connection.frames), camera screen (LiveView: MSE player with MJPEG fallback, stream
                       chips, mute; PtzControls; switches; activity)
   ui/review           review queue + review item (HLS playback, tracked objects, snapshots)
   ui/recordings       per-camera day/hour list
@@ -71,6 +72,7 @@ app/
   [names]}`, or `{}` without ONVIF (`onvif.host` empty). Commands only over the websocket `/ws`:
   `{"topic":"<camera>/ptz","payload":"MOVE_UP|MOVE_DOWN|MOVE_LEFT|MOVE_RIGHT|ZOOM_IN|ZOOM_OUT|STOP|preset_<name>"}`;
   continuous moves run until `STOP`. Allowed for admins and roles that may see the camera. No REST endpoint.
+  Tapo-class cameras ignore a ContinuousMove stopped within ~0.5 s, so a tap holds the move for at least 700 ms.
 - `GET /api/{camera}` = MJPEG (`multipart/x-mixed-replace`, parts **without Content-Length**; `fps`, `height`,
   pre-0.15 `h`, `bbox`). `GET /api/{camera}/latest.jpg?height=`.
 - `GET /vod/{camera}/start/{s}/end/{e}/index.m3u8` = HLS (fMP4 segments, relative URLs) → seekable playback.
@@ -91,9 +93,18 @@ app/
   shown. Latency stays low: small buffers and playback at 1.15–1.5x while more than 1.5 s is buffered. Reconnects
   make a new socket and player (the stream can't be resumed); decoder failures retry once with software decoders.
   HEVC is offered only when the phone has an HEVC decoder.
+- **Audio only when unmuted.** Most IP cameras send PCMA audio, which go2rtc turns into 8 kHz FLAC for MSE. In ExoPlayer
+  an audio track becomes the playback clock: bursty camera audio made video crawl (seen with Tapo cameras in 1.1.0),
+  and Android's `c2.android.flac.decoder` rejects that FLAC outright (emulator: `CodecException 0x80000000`). So muted
+  playback asks go2rtc for video codecs only; unmuting reconnects with audio codecs, and an audio renderer error or a
+  playback position stuck for 3 s drops back to video only ("No sound for this camera").
 - **PTZ over Frigate's websocket** like the web UI (there's no REST endpoint): one `/ws` connection per camera
   screen, opened when the camera reports PTZ features, closed when leaving. Press-and-hold sends a move, release
   sends `STOP`.
+- **Live grid** (setting `live_grid`, default on, only with the Full live mode): every card on screen plays its
+  camera's last `live.streams` entry (by convention the sub stream) muted. LazyVerticalGrid composes only visible
+  cards, so off-screen cameras use no data or decoders. go2rtc remuxes, so the server cost is small. Cameras without a
+  go2rtc stream show polled still frames instead of MJPEG (cheaper for Frigate).
 - **Grid frames polled directly**, not through Coil: each card fetches `latest.jpg` every 2 s while visible and
   resumed, swaps the bitmap only after decoding (no flicker), so no image cache can pin an old frame.
 - **Recordings = HLS VOD** (Media3 ExoPlayer + OkHttp data source): instant start and seeking. If the hardware

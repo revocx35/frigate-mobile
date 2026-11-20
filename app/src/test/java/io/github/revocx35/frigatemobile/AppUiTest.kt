@@ -120,6 +120,12 @@ class AppUiTest {
         compose.waitUntil(5_000) { frigate.wsMessages.any { "MOVE_UP" in it } }
         compose.onNodeWithTag("ptz_up").performTouchInput { up() }
         compose.waitUntil(5_000) { frigate.wsMessages.any { "STOP" in it } }
+        // A quick tap still moves for a while before STOP (cameras ignore shorter moves).
+        frigate.wsMessages.clear()
+        compose.onNodeWithTag("ptz_left").performTouchInput { down(center); up() }
+        compose.waitUntil(5_000) { frigate.wsMessages.any { "STOP" in it } }
+        val sent = frigate.wsMessages.toList()
+        assertTrue(sent.first().contains("MOVE_LEFT"))
         compose.onNodeWithTag("ptz_preset_door").performScrollTo().performClick()
         compose.waitUntil(5_000) { frigate.wsMessages.any { "preset_door" in it } }
         assertTrue(frigate.wsMessages.all { "\"topic\":\"front/ptz\"" in it })
@@ -136,11 +142,22 @@ class AppUiTest {
         assertFalse(frigate.requests.any { it.endsWith("/ptz/info") })
     }
 
+    @Test fun stillGridWhenLiveGridOff() {
+        graph.settings.update { it.copy(liveGrid = false) }
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_front")
+        compose.waitUntil(15_000) { frigate.requests.count { it == "GET /api/front/latest.jpg" } >= 2 }
+        assertFalse(frigate.requests.any { it.startsWith("GET /live/mse") })
+    }
+
+    /** Live grid on (default): the fake refuses the go2rtc stream, so cards fall back to refreshing still frames. */
     @Test fun cameraGridKeepsRefreshingFrames() {
         start()
         signInAndTrust()
         compose.waitForTag("camera_front")
         compose.waitUntil(15_000) { frigate.requests.count { it == "GET /api/front/latest.jpg" } >= 3 }
+        assertTrue(frigate.requests.any { it == "GET /live/mse/api/ws" })
     }
 
     @Test fun birdIconSwitchesLauncherEntry() {

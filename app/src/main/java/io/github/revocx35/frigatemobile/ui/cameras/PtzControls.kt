@@ -44,6 +44,7 @@ import io.github.revocx35.frigatemobile.core.toUserMessage
 import io.github.revocx35.frigatemobile.ui.components.LocalConnection
 import io.github.revocx35.frigatemobile.ui.components.labelTitle
 import io.github.revocx35.frigatemobile.ui.theme.AppIcons
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -60,7 +61,7 @@ fun rememberFrigateSocket(): FrigateSocket {
 }
 
 /**
- * ONVIF PTZ through Frigate: hold an arrow (or zoom) to move, release to stop, like Frigate's web UI. Tapping with
+ * ONVIF PTZ through Frigate: tap an arrow (or zoom) to nudge the camera, hold to keep moving, release to stop. With
  * TalkBack moves briefly. Presets move the camera to a saved position.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -98,6 +99,14 @@ fun PtzControls(
                 }
             }
         }
+        if (!overlay && (info.canMove || info.canZoom)) {
+            Text(
+                "Tap to nudge, hold to keep moving",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         if (info.presets.isNotEmpty() && !overlay) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -130,6 +139,8 @@ private fun HoldButton(
     val scope = rememberCoroutineScope()
     val start by rememberUpdatedState(onStart)
     val stop by rememberUpdatedState(onStop)
+    // A tap's delayed STOP; a new press cancels it so it can't cut the next move short.
+    val pendingStop = remember { arrayOfNulls<Job>(1) }
     Surface(
         shape = CircleShape,
         color = if (overlay) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.secondaryContainer,
@@ -142,18 +153,23 @@ private fun HoldButton(
                 role = Role.Button
                 contentDescription = description
                 onClick(label = description) {
+                    pendingStop[0]?.cancel()
                     start()
-                    scope.launch { delay(400); stop() }
+                    pendingStop[0] = scope.launch { delay(MIN_MOVE_MS); stop() }
                     true
                 }
             }
             .pointerInput(Unit) {
                 detectTapGestures(onPress = {
+                    pendingStop[0]?.cancel()
                     start()
+                    val pressed = System.currentTimeMillis()
                     try {
                         tryAwaitRelease()
                     } finally {
-                        stop()
+                        // A quick tap still nudges the camera: ONVIF cameras ignore a move stopped within ~0.5 s.
+                        val left = MIN_MOVE_MS - (System.currentTimeMillis() - pressed)
+                        if (left > 0) pendingStop[0] = scope.launch { delay(left); stop() } else stop()
                     }
                 })
             },
@@ -161,3 +177,6 @@ private fun HoldButton(
         Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(28.dp)) }
     }
 }
+
+/** Shortest move a tap makes before STOP (Tapo and other ONVIF cameras ignore shorter continuous moves). */
+private const val MIN_MOVE_MS = 700L

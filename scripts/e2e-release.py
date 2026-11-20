@@ -154,6 +154,21 @@ def shot(name):
         f.write(subprocess.run([ADB, "exec-out", "screencap", "-p"], capture_output=True).stdout)
 
 
+def distinct_frames(node, shots=8, every=0.4):
+    """How many of [shots] raw screen grabs of [node]'s area differ: a smooth 25 fps test stream changes every time
+    (its picture includes a running timer), a stalled one repeats."""
+    x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
+    seen = set()
+    for _ in range(shots):
+        raw = subprocess.run([ADB, "exec-out", "screencap"], capture_output=True).stdout
+        w = int.from_bytes(raw[0:4], "little")
+        header = 16 if len(raw) >= 16 + w * int.from_bytes(raw[4:8], "little") * 4 else 12
+        rows = b"".join(raw[header + (y * w + x1) * 4: header + (y * w + x2) * 4] for y in range(y1, y2, 4))
+        seen.add(hashlib.sha256(rows).digest())
+        time.sleep(every)
+    return len(seen)
+
+
 def check_alive():
     crashes = adb("logcat", "-b", "crash", "-d", check=False)
     if PKG in crashes:
@@ -251,12 +266,28 @@ def run(apk):
     time.sleep(5)
     second = subprocess.run([ADB, "exec-out", "screencap"], capture_output=True).stdout
     assert hashlib.sha256(first).digest() != hashlib.sha256(second).digest(), "camera grid frames didn't change"
+    time.sleep(5)
+    card = find(rid="camera_front")
+    smooth = distinct_frames(card)
+    print(f"     grid card (live sub stream): {smooth}/8 distinct frames", flush=True)
+    assert smooth >= 6, f"live grid card isn't playing smoothly: only {smooth} of 8 grabs differ"
+    shot("cameras_live")
 
     step("camera: full-quality live view (go2rtc MSE), then a feature switch")
     tap(rid="camera_front")
     find(rid="live")
     find(rid="live_video", timeout=30)  # set once the first decoded frame is on screen
     time.sleep(5)
+    smooth = distinct_frames(find(rid="live"))
+    print(f"     live view: {smooth}/8 distinct frames (muted)", flush=True)
+    assert smooth >= 6, f"live view is stuttering: only {smooth} of 8 grabs differ"
+    tap(rid="mute")  # sound on: audio track joins the stream
+    find(rid="live_video", timeout=30)
+    time.sleep(5)
+    smooth = distinct_frames(find(rid="live"))
+    print(f"     live view: {smooth}/8 distinct frames (sound on)", flush=True)
+    assert smooth >= 6, f"live view with sound is stuttering: only {smooth} of 8 grabs differ"
+    tap(rid="mute")
     assert not exists(rid="live_fallback"), "fell back to MJPEG although the camera has a go2rtc stream"
     assert not exists(contains="Reconnecting"), "live view failed"
     shot("live")
