@@ -22,8 +22,11 @@ android {
         applicationId = "io.github.revocx35.frigatemobile"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.2.1"
+        versionCode = 6
+        versionName = "1.3.0"
+
+        // libwebrtc (two-way audio) is native: ship the ABIs phones and the x86_64 test emulator use.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
     signingConfigs {
@@ -83,6 +86,8 @@ android {
     }
 
     packaging {
+        // Compress libwebrtc in the APK (38 MB -> ~15 MB download); Android extracts it on install.
+        jniLibs.useLegacyPackaging = true
         resources.excludes += setOf("META-INF/{AL2.0,LGPL2.1}", "META-INF/versions/9/OSGI-INF/MANIFEST.MF")
     }
 }
@@ -120,6 +125,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.work.runtime)
+    implementation(libs.webrtc.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

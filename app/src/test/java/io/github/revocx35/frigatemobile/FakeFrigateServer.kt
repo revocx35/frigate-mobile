@@ -72,6 +72,12 @@ class FakeFrigateServer {
                         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) { webSocket.close(1000, null) }
                     }).build()
                     path == "/live/mse/api/ws" && !mseAvailable -> MockResponse.Builder().code(403).build()
+                    // "front" has a camera speaker (two-way audio), like a Tapo behind go2rtc's tapo:// source.
+                    path == "/api/go2rtc/streams/front" -> json(
+                        """{"producers":[{"url":"rtsp://cam/1","medias":["video, recvonly, H264","audio, recvonly, PCMA/8000"]},""" +
+                            """{"url":"tapo://cam","medias":["audio, sendonly, PCMA/8000"]}],"consumers":null}""",
+                    )
+                    path.startsWith("/api/go2rtc/streams/") -> json("""{"producers":[{"url":"rtsp://cam/1","medias":["video, recvonly, H264"]}]}""")
                     path == "/api/front/ptz/info" -> json("""{"name":"front","features":["pt","zoom"],"presets":["door"],"profiles":[]}""")
                     path.endsWith("/ptz/info") -> json("{}")
                     path == "/api/version" -> MockResponse.Builder().code(200).body("0.18.3-a19e23a").build()

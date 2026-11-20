@@ -1,0 +1,1 @@
+New: two-way audio. Tap the microphone on a camera with a speaker to talk through it (Tapo, XMeye/DVRIP or ONVIF cameras set up for talkback in Frigate's go2rtc), tap again to stop. Needs go2rtc's WebRTC port 8555 reachable from the phone. The app now asks for the microphone the first time you talk. The download is larger (~20 MB) because of the WebRTC library.

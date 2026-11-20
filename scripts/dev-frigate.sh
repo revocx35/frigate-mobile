@@ -4,7 +4,8 @@
 #   scripts/dev-frigate.sh down   -> remove the container and its data
 # Two cameras loop a generated test video; the CPU detector runs at 2 fps to stay light. "front" also has a go2rtc
 # stream (720p, 25 fps + PCMA audio like most IP cameras, from live.mp4) for the full-quality live view; "garage"
-# has none (MJPEG fallback).
+# has none (MJPEG fallback). "front" also has a fake speaker for two-way audio: what the app sends lands in
+# $DIR/media/talk.alaw (WebRTC on 127.0.0.1:18555, reachable from the emulator as 10.0.2.2:18555).
 # Inside the Android emulator the server is https://10.0.2.2:18971.
 set -euo pipefail
 
@@ -12,6 +13,7 @@ IMAGE="${FRIGATE_IMAGE:-ghcr.io/blakeblackshear/frigate:stable}"
 NAME=frigate-mobile-dev
 DIR="${FRIGATE_DEV_DIR:-${TMPDIR:-/tmp}/frigate-mobile-dev}"
 PORT="${FRIGATE_DEV_PORT:-18971}"
+WEBRTC_PORT="${FRIGATE_DEV_WEBRTC_PORT:-18555}"
 USER_NAME=admin
 PASSWORD_FILE="$DIR/admin-password"
 
@@ -48,9 +50,16 @@ record:
 snapshots:
   enabled: true
 go2rtc:
+  webrtc:
+    candidates:
+      - 10.0.2.2:$WEBRTC_PORT
+      - 127.0.0.1:$WEBRTC_PORT
   streams:
     front:
       - ffmpeg:/media/frigate/live.mp4#video=copy#audio=pcma
+      # A fake camera speaker (two-way audio): go2rtc pipes the talk audio (A-law) into dd, which appends it to
+      # talk.alaw right away (ffmpeg would buffer 256 KB). exec sources need GO2RTC_ALLOW_ARBITRARY_EXEC.
+      - "exec:dd of=/media/frigate/talk.alaw oflag=append conv=notrunc#backchannel=1#audio=pcma/8000"
 cameras:
   front:
     ffmpeg:
@@ -76,9 +85,9 @@ version: 0.18-0
 YAML
     docker rm -f "$NAME" >/dev/null 2>&1 || true
     docker run -d --name "$NAME" --shm-size=128m --cpus=1.5 --memory=2g \
-      -p "127.0.0.1:$PORT:8971" \
+      -p "127.0.0.1:$PORT:8971" -p "127.0.0.1:$WEBRTC_PORT:8555/tcp" -p "127.0.0.1:$WEBRTC_PORT:8555/udp" \
       -v "$DIR/config:/config" -v "$DIR/media:/media/frigate" \
-      -e TZ=UTC "$IMAGE" >/dev/null
+      -e TZ=UTC -e GO2RTC_ALLOW_ARBITRARY_EXEC=true "$IMAGE" >/dev/null
     echo "waiting for Frigate..." >&2
     for _ in $(seq 1 90); do
       pw=$(docker logs "$NAME" 2>&1 | grep -oE 'Password: [^ ]+' | tail -1 | cut -d' ' -f2 || true)

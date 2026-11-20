@@ -24,6 +24,11 @@ Frigate server's API directly, with no cloud service in between and no tracking.
   cameras' G.711 audio arrives as FLAC that Android can't decode, so the app decodes it itself),
   with a choice between the camera's streams (e.g. main/sub). Cameras without a go2rtc stream fall back to Frigate's
   MJPEG feed (three quality levels, optional detection boxes). Full screen in landscape; streams only while open.
+- **Two-way audio:** tap the microphone on a camera with a speaker to talk through it, tap again to stop (like
+  Frigate's web UI: WebRTC to go2rtc's backchannel). Shown when Frigate's go2rtc reports the camera can receive audio,
+  e.g. a Tapo (`tapo://` source with the TP-Link cloud password), an XMeye/DVRIP camera (`dvrip://…?backchannel=1`) or
+  an ONVIF camera with an audio backchannel. Needs go2rtc's WebRTC port (8555) reachable from the phone and listed in
+  `go2rtc: webrtc: candidates` (e.g. `- 192.168.1.10:8555`); on the LAN or over a VPN.
 - **PTZ (ONVIF):** hold the arrows to pan/tilt, zoom in/out, go to presets; also as an overlay in full screen.
   Shown for cameras with `onvif` configured in Frigate.
 - **Review:** alerts and detections (Frigate 0.14+ review items), newest first, grouped by day, filtered to

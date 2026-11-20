@@ -4,6 +4,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollTo
@@ -131,6 +132,16 @@ class AppUiTest {
         assertTrue(frigate.wsMessages.all { "\"topic\":\"front/ptz\"" in it })
     }
 
+    @Test fun talkButtonOnlyForCamerasWithASpeaker() {
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_front")
+        compose.onNodeWithTag("camera_front").performClick()
+        compose.waitForTag("talk")
+        assertTrue(frigate.requests.contains("GET /api/go2rtc/streams/front"))
+        compose.onNodeWithTag("talk").assertContentDescriptionEquals("Talk")
+    }
+
     @Test fun cameraWithoutOnvifHasNoPtz() {
         start()
         signInAndTrust()
@@ -140,6 +151,10 @@ class AppUiTest {
         compose.waitForTag("switch_detect")
         assertTrue(compose.onAllNodesWithTag("ptz").fetchSemanticsNodes().isEmpty())
         assertFalse(frigate.requests.any { it.endsWith("/ptz/info") })
+        // No speaker on this camera: no talk button.
+        compose.waitUntil(5_000) { frigate.requests.contains("GET /api/go2rtc/streams/garage") }
+        compose.waitForIdle()
+        assertTrue(compose.onAllNodesWithTag("talk").fetchSemanticsNodes().isEmpty())
     }
 
     @Test fun stillGridWhenLiveGridOff() {

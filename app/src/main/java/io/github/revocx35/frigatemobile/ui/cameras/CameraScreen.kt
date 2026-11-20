@@ -99,12 +99,23 @@ fun CameraScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val onPtzError: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+    // Two-way audio: the first of the camera's go2rtc streams whose camera has a talkback channel (Frigate's
+    // `/api/go2rtc/streams/<name>` lists an "audio, sendonly" media then). Probed apart from the screen: a Tapo
+    // source logs in to the camera for it.
+    var talkStream by remember(camera) { mutableStateOf<String?>(null) }
+    LaunchedEffect(conn, camera, cam?.liveStreams) {
+        talkStream = cam?.liveStreams?.values?.distinct().orEmpty().firstOrNull { s ->
+            try { conn.client.go2rtcStream(s).twoWayAudio } catch (e: CancellationException) { throw e } catch (_: Exception) { false }
+        }
+    }
+    val talk = rememberTalkController(talkStream, onPtzError)
 
     if (fullscreen) {
         FullscreenEffect { fullscreen = false }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             LiveView(go2rtcStream, mjpegUrl, "Live view of ${cam?.title ?: camera}", muted, Modifier.fillMaxSize())
             Row(Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp)) {
+                talk?.let { TalkButton(it, overlay = true) }
                 if (go2rtcStream != null) {
                     IconButton(onClick = { muted = !muted }, colors = overlayButtonColors()) {
                         Icon(if (muted) AppIcons.VolumeOff else AppIcons.VolumeUp, if (muted) "Unmute" else "Mute")
@@ -127,6 +138,7 @@ fun CameraScreen(
                 title = { Text(cam?.title ?: camera) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(AppIcons.Back, "Back") } },
                 actions = {
+                    talk?.let { TalkButton(it) }
                     if (go2rtcStream != null) {
                         IconButton(onClick = { muted = !muted }, modifier = Modifier.testTag("mute")) {
                             Icon(if (muted) AppIcons.VolumeOff else AppIcons.VolumeUp, if (muted) "Unmute" else "Mute")

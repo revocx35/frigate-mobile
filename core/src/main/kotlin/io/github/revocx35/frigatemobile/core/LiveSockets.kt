@@ -129,6 +129,103 @@ class MseStream private constructor(private val queue: LinkedBlockingQueue<Any>)
     }
 }
 
+/**
+ * go2rtc's WebRTC signaling through Frigate (`/live/webrtc/api/ws?src=<stream>`), as Frigate's web UI uses it for
+ * two-way audio: the client sends `{"type":"webrtc/offer","value":<sdp>}`, go2rtc answers `webrtc/answer` and then
+ * trickles its ICE candidates as `webrtc/candidate` (the candidate line; m-line 0). The media itself (DTLS-SRTP) goes
+ * straight to go2rtc's WebRTC port (8555), not through this socket.
+ *
+ * [http] must be the session's client (cookie + pinning). Remote candidates arriving before [onCandidate] is set are
+ * kept and handed over when it is.
+ */
+class WebRtcSignaling private constructor() : Closeable {
+    @Volatile private var socket: WebSocket? = null
+    @Volatile private var closed = false
+    private val pending = ArrayList<String>()
+    private var candidateSink: ((String) -> Unit)? = null
+
+    /** go2rtc's SDP answer. */
+    var answer: String = ""
+        private set
+
+    /** Called (on OkHttp's thread) with each remote ICE candidate line. */
+    fun onCandidate(sink: (String) -> Unit) {
+        val queued = synchronized(pending) {
+            candidateSink = sink
+            pending.toList().also { pending.clear() }
+        }
+        queued.forEach(sink)
+    }
+
+    private fun remoteCandidate(candidate: String) {
+        val sink = synchronized(pending) { candidateSink ?: run { pending += candidate; null } }
+        sink?.invoke(candidate)
+    }
+
+    /** Sends a local ICE candidate line (`candidate:...`). */
+    fun sendCandidate(candidate: String): Boolean =
+        socket?.send(buildJsonObject { put("type", "webrtc/candidate"); put("value", candidate) }.toString()) == true
+
+    override fun close() {
+        if (closed) return
+        closed = true
+        socket?.close(1000, null)
+    }
+
+    companion object {
+        /**
+         * Connects, sends [offerSdp] and waits for the answer. Throws [FrigateException.Forbidden] when Frigate refuses
+         * the stream, or go2rtc's error (e.g. no codec in common with the camera's speaker).
+         */
+        suspend fun open(http: OkHttpClient, url: HttpUrl, offerSdp: String, timeoutMs: Long = 15_000): WebRtcSignaling {
+            val signaling = WebRtcSignaling()
+            val ready = CompletableDeferred<String>()
+            val listener = object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    webSocket.send(buildJsonObject { put("type", "webrtc/offer"); put("value", offerSdp) }.toString())
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    val msg = runCatching { FrigateJson.parseToJsonElement(text) as? JsonObject }.getOrNull() ?: return
+                    val value = msg.str("value").orEmpty()
+                    when (msg.str("type")) {
+                        "webrtc/answer" -> ready.complete(value)
+                        "webrtc/candidate" -> if (value.isNotBlank()) signaling.remoteCandidate(value)
+                        "error" -> ready.completeExceptionally(FrigateException.Protocol("go2rtc: ${value.ifBlank { "talk refused" }}"))
+                    }
+                }
+
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    webSocket.close(1000, null)
+                    ready.completeExceptionally(FrigateException.Protocol("The talk connection closed (${reason.ifBlank { code.toString() }})."))
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    ready.completeExceptionally(
+                        when (response?.code) {
+                            401 -> FrigateException.Unauthorized()
+                            403 -> FrigateException.Forbidden()
+                            404 -> FrigateException.NotFound("The WebRTC endpoint")
+                            null -> t
+                            else -> FrigateException.Http(response.code, "Talk refused (HTTP ${response.code}).")
+                        },
+                    )
+                }
+            }
+            val client = http.newBuilder().pingInterval(15, TimeUnit.SECONDS).build()
+            signaling.socket = client.newWebSocket(Request.Builder().url(url).build(), listener)
+            try {
+                signaling.answer = withTimeout(timeoutMs) { ready.await() }
+            } catch (e: Throwable) {
+                signaling.socket?.cancel()
+                signaling.closed = true
+                throw e
+            }
+            return signaling
+        }
+    }
+}
+
 /** PTZ commands as Frigate's `<camera>/ptz` topic takes them (Frigate lower-cases them). */
 enum class PtzCommand(val payload: String) {
     Up("MOVE_UP"), Down("MOVE_DOWN"), Left("MOVE_LEFT"), Right("MOVE_RIGHT"),

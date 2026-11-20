@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
@@ -198,6 +199,23 @@ data class PtzInfo(
     val canZoom: Boolean get() = "zoom" in features
     val canFocus: Boolean get() = "focus" in features
     val available: Boolean get() = canMove || canZoom || presets.isNotEmpty()
+}
+
+/**
+ * go2rtc's producers of a stream, reduced to their medias, e.g. `video, recvonly, H264` or `audio, sendonly,
+ * PCMA/8000` (go2rtc's view: it *sends* that audio to the camera, i.e. the camera has a speaker).
+ */
+data class Go2rtcStreamInfo(val medias: List<String> = emptyList()) {
+    /** The camera can play audio sent to it (Frigate's web UI shows its talk button for the same check). */
+    val twoWayAudio: Boolean get() = medias.any { it.startsWith("audio, sendonly") }
+
+    companion object {
+        fun parse(o: JsonObject): Go2rtcStreamInfo = Go2rtcStreamInfo(
+            (o["producers"] as? JsonArray).orEmpty().flatMap { p ->
+                ((p as? JsonObject)?.get("medias") as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            },
+        )
+    }
 }
 
 /** `GET /api/stats`, reduced to what the System screen shows. */

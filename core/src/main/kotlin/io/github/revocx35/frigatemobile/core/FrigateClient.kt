@@ -112,6 +112,13 @@ class FrigateClient(val session: FrigateSession, val http: OkHttpClient) {
     /** PTZ capabilities and presets (ONVIF). Empty [PtzInfo] when the camera has none; any role with access may ask. */
     suspend fun ptzInfo(camera: String): PtzInfo = get("api/${seg(camera)}/ptz/info", PtzInfo.serializer())
 
+    /**
+     * What go2rtc can do with a stream (`GET /api/go2rtc/streams/{name}`). Frigate asks go2rtc with its `microphone`
+     * probe, so a camera with a talkback channel lists an `audio, sendonly` media. Any role that may see the stream.
+     */
+    suspend fun go2rtcStream(stream: String): Go2rtcStreamInfo =
+        Go2rtcStreamInfo.parse(getObject("api/go2rtc/streams/${seg(stream)}"))
+
     // ---- plumbing ----
 
     private suspend fun <T> get(path: String, serializer: KSerializer<T>): T = get(address.resolve(path), serializer)
@@ -197,6 +204,13 @@ class MediaUrls(private val address: ServerAddress) {
      */
     fun mse(stream: String): HttpUrl =
         address.resolve("live/mse/api/ws").newBuilder().addQueryParameter("src", stream).build()
+
+    /**
+     * go2rtc's WebRTC signaling websocket for a stream (`webrtc/offer`, `webrtc/answer`, `webrtc/candidate`), used
+     * for two-way audio. Same nginx check as [mse].
+     */
+    fun webrtc(stream: String): HttpUrl =
+        address.resolve("live/webrtc/api/ws").newBuilder().addQueryParameter("src", stream).build()
 
     /** Frigate's own websocket (`/ws`): state updates out, commands such as `<camera>/ptz` in. */
     fun socket(): HttpUrl = address.resolve("ws")

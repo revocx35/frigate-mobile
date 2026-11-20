@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Alert notifications (opt-in in System → Notifications). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Two-way audio (talk through a camera's speaker): asked on the first tap of the talk button. WebRTC's audio
+         module needs MODIFY_AUDIO_SETTINGS for its echo canceller and audio routing (normal permission). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- No backups: the app holds an encrypted session token and password whose Keystore key can't be restored. -->
     <application

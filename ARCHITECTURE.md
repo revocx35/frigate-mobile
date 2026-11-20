@@ -13,8 +13,8 @@ core/   (pure Kotlin/JVM, unit-tested without Android)
   MediaUrls        URLs of images (latest frame, thumbnails, snapshots) and video (MJPEG, HLS VOD, MP4)
   MjpegReader      splits Frigate's multipart MJPEG stream into JPEG frames
   FlacDecoder      FLAC frames -> 16-bit PCM (go2rtc's camera audio; Android's decoder rejects it)
-  LiveSockets      MseStream (go2rtc MSE over websocket: codec negotiation, fMP4 chunks) and FrigateSocket
-                   (Frigate's /ws, used for PTZ commands)
+  LiveSockets      MseStream (go2rtc MSE over websocket: codec negotiation, fMP4 chunks), WebRtcSignaling (go2rtc
+                   WebRTC offer/answer/candidates, for two-way audio) and FrigateSocket (Frigate's /ws, PTZ)
   Models           lenient models; config/stats parsed from JsonObject (Frigate adds fields every release)
 
 app/
@@ -29,7 +29,7 @@ app/
   ui/cameras          grid (live: LiveView on the camera's last live.streams entry = sub stream, muted, cropped;
                       LatestFrame fallback: latest.jpg polled every 2 s through the session client, last frame kept
                       per camera in Connection.frames), camera screen (LiveView: MSE player with MJPEG fallback, stream
-                      chips, mute; PtzControls; switches; activity)
+                      chips, mute; Talkback: two-way audio; PtzControls; switches; activity)
   ui/review           review queue + review item (HLS playback, tracked objects, snapshots)
   ui/recordings       per-camera day/hour list
   ui/player           ExoPlayer (Media3) through the session's OkHttp client; software-decoder retry
@@ -69,6 +69,15 @@ app/
 - `cameras.X.live.streams` maps labels (e.g. `fhd`, `sd`) to go2rtc stream names, in config order; Frigate fills in
   `{name: name}` when unset, even if go2rtc has no such stream. Such a name passes nginx's check (it belongs to the
   camera) and go2rtc answers `{"type":"error","value":"mse: stream not found"}` (seen on 0.18.3) → MJPEG fallback.
+- Two-way audio: `GET /api/go2rtc/streams/{name}` (any role that may see it) proxies go2rtc's `/api/streams` with
+  `microphone`, so producers list an `audio, sendonly, PCMA/8000` media when the camera has a speaker (the web UI's
+  check). Talk = WebRTC over `/live/webrtc/api/ws?src=<stream>`: client `{"type":"webrtc/offer","value":sdp}`, go2rtc
+  `webrtc/answer` then `webrtc/candidate` (candidate line, m-line 0); the client may trickle `webrtc/candidate` too.
+  Media goes to go2rtc's WebRTC port 8555, which must be published and in `go2rtc.webrtc.candidates` (Frigate's
+  default is only `stun:8555`, i.e. the public address). go2rtc forwards the RTP payload to the camera without
+  transcoding, so the offer must contain the camera's codec (PCMA/PCMU). Backchannel sources: `tapo://<cloud
+  password>@ip` (TP-Link account password, not the camera account), `dvrip://user:pw@ip:34567?backchannel=1`
+  (XMeye), RTSP with ONVIF backchannel. A go2rtc stream lists several sources; the first that has a media wins.
 - PTZ: `GET /api/{camera}/ptz/info` → `{name, features: [pt, zoom, pt-r, zoom-r, zoom-a, focus, pt-r-fov], presets:
   [names]}`, or `{}` without ONVIF (`onvif.host` empty). Commands only over the websocket `/ws`:
   `{"topic":"<camera>/ptz","payload":"MOVE_UP|MOVE_DOWN|MOVE_LEFT|MOVE_RIGHT|ZOOM_IN|ZOOM_OUT|STOP|preset_<name>"}`;
@@ -104,6 +113,13 @@ app/
     (all subframe types; tested sample-exact against ffmpeg);
   - safety nets: an audio renderer error, no first frame within 10 s, or a position frozen for 3 s while playing
     drops back to video only ("No sound for this camera").
+- **Two-way audio over WebRTC, like the web UI.** Frigate exposes no other way to reach go2rtc's backchannel (no HTTP
+  passthrough to go2rtc's `/api/ffmpeg`, and an RTSP publish would become a producer, not a backchannel). The app
+  uses Google's libwebrtc (prebuilt `io.github.webrtc-sdk:android`) with one send-only audio transceiver; the mic is
+  captured at 8 kHz with hardware echo cancel/noise suppression and encoded as G.711 for the camera. Signaling uses
+  the session client (cookie, pinning); media is DTLS-SRTP straight to go2rtc. No third-party ICE servers; off the
+  LAN it works only where 8555 is reachable (VPN). Tap to talk, tap to stop; talking stops when the screen goes to
+  the background or is left. A talk button only appears for streams whose go2rtc reports a backchannel.
 - **PTZ over Frigate's websocket** like the web UI (there's no REST endpoint): one `/ws` connection per camera
   screen, opened when the camera reports PTZ features, closed when leaving. Press-and-hold sends a move, release
   sends `STOP`.
@@ -139,16 +155,19 @@ Assets: the Frigate password, the session JWT (full access to cameras and record
 | Brute force via the app | Frigate's server-side rate limit (`auth.failed_login_rate_limit`); the app shows 429 as "too many attempts" and never retries a failed login in a loop (one silent re-login per 401). |
 | Lock-screen exposure | Notification channel and notifications are `VISIBILITY_PRIVATE` with a public version without thumbnail. |
 | Live stream / PTZ abuse | Both websockets go through the session client (cookie only to the server, pinned TLS). Stream names come from Frigate's own config; Frigate checks role access to the stream and camera. Sockets exist only while a camera screen is resumed. |
+| Microphone misuse / eavesdropping on talk | RECORD_AUDIO asked on first tap; the mic is open only while the talk button is active and the screen is in the foreground (closed on ON_STOP/leave). Talk audio is DTLS-SRTP to the user's own go2rtc only; signaling is the authenticated, pinned websocket; Frigate checks the role may see the stream. |
 | CSRF | Not applicable to a native client; Frigate's `X-CSRF-TOKEN` header is sent on writes as Frigate requires. |
 
 Tests for these paths: `core/.../SessionTest.kt` (cookie scope, CSRF, re-login, refresh, wrong/rate-limited
 login, custom cookie name), `app/.../AppUiTest.kt` (pinning dialog, refused certificate, cleartext refused,
 expired session with/without password, sign-out forgets secrets), `AccountStoreTest.kt` (encryption at rest), `core/.../LiveSocketsTest.kt` (cookie on websocket upgrades, refused
-stream → Forbidden, PTZ topic/payloads).
+stream → Forbidden, PTZ topic/payloads, WebRTC signaling incl. refused stream and go2rtc errors).
 
 ## 6. Platform constraints
 
 - minSdk 26, target/compile 37. Android 17 needs `ACCESS_LOCAL_NETWORK` for LAN servers (`ui/LocalNetworkAccess.kt`);
   Robolectric runs SDK 35, so only the emulator e2e run exercises it.
+- `RECORD_AUDIO` (runtime, on first talk) and `MODIFY_AUDIO_SETTINGS` for two-way audio. libwebrtc is native: no
+  32-bit x86 build is shipped (the talk button then says it isn't supported).
 - Android 13+ needs `POST_NOTIFICATIONS` (asked when notifications are switched on).
 - Release builds use R8 (`-dontobfuscate`); `scripts/e2e-release.py` checks the minified APK on the emulator.

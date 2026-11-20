@@ -4,7 +4,7 @@ through UI Automator.
 
 Robolectric tests run unminified code against a fake server; this script catches what R8 or the real Frigate
 breaks. It installs the APK, signs in to the disposable test Frigate (incl. the Android 17 local network prompt
-and the certificate dialog, whose fingerprint must match the server's), watches live video, switches a camera
+and the certificate dialog, whose fingerprint must match the server's), watches live video, talks through the dev Frigate's fake camera speaker, switches a camera
 feature (verified through Frigate's API), plays a recording and a review item, enables notifications, restarts
 the app to check the stored session, signs out, and fails on any crash.
 
@@ -25,6 +25,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 PKG = "io.github.revocx35.frigatemobile"
+DEV_CONTAINER = "frigate-mobile-dev"  # scripts/dev-frigate.sh
 SDK = os.environ.get("ANDROID_HOME", "/opt/android-sdk")
 ADB = os.path.join(SDK, "platform-tools", "adb")
 HOST_URL = os.environ.get("FRIGATE_IT_URL", "https://127.0.0.1:18971")  # as seen from this machine
@@ -296,6 +297,31 @@ def run(apk):
     assert not exists(rid="live_fallback"), "fell back to MJPEG although the camera has a go2rtc stream"
     assert not exists(contains="Reconnecting"), "live view failed"
     shot("live")
+
+    step("two-way audio: talk through the camera (the dev Frigate's fake speaker records it)")
+    talk_size = lambda: int(subprocess.run(["docker", "exec", DEV_CONTAINER, "sh", "-c",
+                                            "stat -c %s /media/frigate/talk.alaw 2>/dev/null || echo 0"],
+                                           capture_output=True, text=True).stdout.strip() or 0)
+    before_talk = talk_size()
+    tap(rid="talk", timeout=30)  # shown once Frigate reports the stream's "audio, sendonly" media
+    find(contains="While using the app", timeout=20)  # microphone permission prompt
+    tap(contains="While using the app")
+    find(desc="Stop talking", timeout=20)
+    for _ in range(30):  # WebRTC connects, then A-law reaches go2rtc's backchannel (8000 bytes/s)
+        if talk_size() - before_talk > 8000:
+            break
+        time.sleep(0.5)
+    else:
+        raise AssertionError(f"no talk audio reached the camera (talk.alaw {before_talk} -> {talk_size()} bytes)")
+    shot("talking")
+    assert not exists(contains="Couldn't reach"), "talk connection failed"
+    tap(rid="talk")
+    find(desc="Talk", timeout=10)
+    sent = talk_size() - before_talk
+    print(f"     talk audio received by the camera: {sent} bytes", flush=True)
+    time.sleep(2)
+    assert talk_size() - before_talk - sent < 4000, "the microphone kept sending after stopping"
+
     before = api("GET", "config")["cameras"]["front"]["snapshots"]["enabled"]
     tap(rid="switch_snapshots")
     for _ in range(20):
@@ -382,7 +408,7 @@ def run(apk):
     if exists(text="Done"):  # newer photo pickers confirm the selection
         tap(text="Done")
     for _ in range(4):
-        if exists(rid="pin_shortcut") or exists(rid="remove_custom_icon"):
+        if exists(rid="remove_custom_icon"):  # below "Add to home screen": scroll until it is on screen
             break
         adb("shell", "input", "swipe", "500", "1800", "500", "900")
     find(rid="remove_custom_icon", timeout=20)
