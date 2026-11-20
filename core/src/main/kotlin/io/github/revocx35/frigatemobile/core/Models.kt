@@ -147,6 +147,12 @@ data class CameraInfo(
     val liveStreams: Map<String, String> = emptyMap(),
     /** `onvif.host` is set: the camera may support PTZ (ask `GET /api/{camera}/ptz/info`). */
     val onvifConfigured: Boolean = false,
+    /**
+     * go2rtc streams that can play the phone's microphone on this camera's speaker, best first, read from the config
+     * ([Go2rtcSource.talk]): live streams first, then other streams with a source on the same camera address (e.g.
+     * a talk-only `tapo://` stream). Empty: unknown from the config (an ONVIF camera may still have it: probe).
+     */
+    val talkStreams: List<String> = emptyList(),
 ) {
     val title: String get() = friendlyName?.takeIf { it.isNotBlank() } ?: name.replace('_', ' ').replaceFirstChar { it.uppercase() }
     val aspectRatio: Float get() = if (width > 0 && height > 0) width.toFloat() / height else 16f / 9f
@@ -157,6 +163,7 @@ data class FrigateConfig(val cameras: List<CameraInfo>) {
 
     companion object {
         fun parse(root: JsonObject): FrigateConfig {
+            val go2rtc = Go2rtcSource.streams(root.obj("go2rtc").obj("streams"))
             val cams = (root["cameras"] as? JsonObject).orEmpty().mapNotNull { (name, v) ->
                 val c = v as? JsonObject ?: return@mapNotNull null
                 CameraInfo(
@@ -179,8 +186,57 @@ data class FrigateConfig(val cameras: List<CameraInfo>) {
                     }.toMap(),
                     onvifConfigured = !c.obj("onvif").str("host").isNullOrBlank(),
                 )
-            }.sortedWith(compareBy({ it.order }, { it.name }))
+            }.map { it.copy(talkStreams = Go2rtcSource.talkStreams(it.liveStreams.values, go2rtc)) }.sortedWith(compareBy({ it.order }, { it.name }))
             return FrigateConfig(cams)
+        }
+    }
+}
+
+/**
+ * One source of a go2rtc stream (`go2rtc.streams` in Frigate's config), reduced to what two-way audio needs. Keeps
+ * no credentials: only the camera's address and whether the source declares a talk channel.
+ */
+data class Go2rtcSource(
+    /** Camera address (host, lower case), null for go2rtc-internal sources (`ffmpeg:<stream>`, loopback). */
+    val host: String?,
+    /** A backchannel to the camera's speaker: `tapo://` (Tapo protocol) or `backchannel=1` (DVRIP, exec, ...). */
+    val talk: Boolean,
+) {
+    companion object {
+        private val SCHEME = Regex("^([a-z][a-z0-9+.-]*)://", RegexOption.IGNORE_CASE)
+        private val BACKCHANNEL_ON = Regex("[?&#]backchannel=1(\\b|$)")
+
+        fun parse(source: String): Go2rtcSource {
+            val s = source.trim()
+            val scheme = SCHEME.find(s)?.groupValues?.get(1)?.lowercase()
+            val talk = scheme == "tapo" || BACKCHANNEL_ON.containsMatchIn(s)
+            if (scheme == null) return Go2rtcSource(null, talk) // ffmpeg:<stream>#..., exec:..., echo:...
+            // authority = after "://" up to the first '/', '?' or '#'; the host follows the last '@' (credentials may
+            // contain '@' only percent-encoded, but be lenient) and goes up to a ':' port.
+            val rest = s.substring(scheme.length + 3)
+            val authority = rest.substring(0, rest.indexOfAny(charArrayOf('/', '?', '#')).let { if (it < 0) rest.length else it })
+            val hostPort = authority.substringAfterLast('@')
+            val host = if (hostPort.startsWith("[")) hostPort.substringBefore(']').plus("]") else hostPort.substringBefore(':')
+            val h = host.lowercase().takeIf { it.isNotBlank() && it != "localhost" && !it.startsWith("127.") && it != "[::1]" }
+            return Go2rtcSource(h, talk)
+        }
+
+        /** `go2rtc.streams`: name -> its sources (a string or a list of strings). */
+        fun streams(o: JsonObject): Map<String, List<Go2rtcSource>> = o.mapValues { (_, v) ->
+            when (v) {
+                is JsonArray -> v.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.let(::parse) }
+                is JsonPrimitive -> listOfNotNull(v.contentOrNull?.let(::parse))
+                else -> emptyList()
+            }
+        }
+
+        /** See [CameraInfo.talkStreams]. */
+        fun talkStreams(live: Collection<String>, streams: Map<String, List<Go2rtcSource>>): List<String> {
+            val liveNames = live.distinct()
+            val hosts = liveNames.flatMap { streams[it].orEmpty() }.mapNotNull { it.host }.toSet()
+            val own = liveNames.filter { n -> streams[n].orEmpty().any { it.talk } }
+            val others = streams.filter { (n, src) -> n !in liveNames && src.any { it.talk && it.host != null && it.host in hosts } }.keys
+            return own + others
         }
     }
 }

@@ -6,7 +6,7 @@ and the threat model are in `ARCHITECTURE.md`.
 
 ## Layout
 - `core/`: pure Kotlin/JVM. `FrigateClient` (REST API), `FrigateSession` (cookie, CSRF, refresh, re-login
-  interceptor), `MediaUrls`, `MjpegReader`, `LiveSockets.kt` (`MseStream` go2rtc MSE, `WebRtcSignaling` go2rtc WebRTC for talk, `FrigateSocket` /ws + PTZ), `FlacDecoder` (camera audio),
+  interceptor), `MediaUrls`, `MjpegReader`, `LiveSockets.kt` (`MseStream` go2rtc MSE, `WebRtcSignaling` go2rtc WebRTC for talk, `FrigateSocket` /ws + PTZ), `FlacDecoder` (camera audio), `AudioLeveler` (automatic gain for camera audio),
   `Models.kt`, `ServerAddress` (HTTPS-only parsing).
   Tests: `core/src/test` (unit, MockWebServer over TLS, `LiveFrigateTest` against a real Frigate).
   Recorded Frigate 0.18.3 responses: `core/src/test/resources/fixtures/0.18.3/` (copied to `app/src/test/resources/fixtures/`).
@@ -21,7 +21,7 @@ and the threat model are in `ARCHITECTURE.md`.
 - JDK 21 is required (`export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`; JDK 25 here has no javac toolchain
   capability for AGP). SDK at `/opt/android-sdk` via `local.properties` (not committed).
 - On the dev LXC wrap heavy jobs: `heavy ./gradlew …` (capped CPU/RAM).
-- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (68 tests; 5 skipped: the live one without a server, screenshots unless recording).
+- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (75 tests; 5 skipped: the live one without a server, screenshots unless recording).
 - Live tests: `eval "$(scripts/dev-frigate.sh up)"` (Frigate `stable` on https://127.0.0.1:18971, two looping test
   cameras, admin password from its first-start log, cert fingerprint exported), rerun `:core:test`.
   `scripts/dev-frigate.sh down` removes it. The image is ~9 GB on disk: remove it when done if disk is tight.
@@ -85,7 +85,14 @@ Losing the keystore means users must uninstall to update.
   visibility (`/api/go2rtc/streams/<name>` with an `audio, sendonly` media); the real path is e2e step 08. The APK
   ships arm64-v8a, armeabi-v7a and x86_64 (compressed, `useLegacyPackaging`): ~20 MB instead of 3 MB. go2rtc doesn't
   transcode the backchannel: the phone must offer the camera's codec (libwebrtc offers PCMA/PCMU, fine for cameras).
-  Probing a Tapo stream makes go2rtc log in to the camera, so it happens once per camera screen, not in the grid.
+  Talk detection comes from the config first (`CameraInfo.talkStreams`: a `tapo://` or `backchannel=1` source in a live
+  stream, or in another go2rtc stream with the same camera host, e.g. a talk-only `c212_talk: tapo://…`); only cameras
+  without one are probed (`/api/go2rtc/streams/<name>`, 10 s limit), once per camera screen, never in the grid.
+- Don't put a `tapo://` source in a camera's live stream next to RTSP: a probe (the app's or the web UI's) makes go2rtc
+  start the Tapo video session and then open a *second* Tapo session for talk, which a Tapo C212 never answers; the
+  probe holds go2rtc's stream and hangs for minutes (seen on the owner's C212, 2026-11-20). Give it its own stream.
+- Camera sound goes through `AudioLeveler` (in `FlacAudioRenderer`): real cameras record at -57 to -72 dB mean, which
+  a phone barely plays. Keep the gain cap (20x) and the slow rise, or background hiss pumps between words.
 - go2rtc's `PUT /api/streams` (internal API) persists into Frigate's `/config/go2rtc_homekit.yml`; don't use it for
   experiments on a real Frigate (or empty that file afterwards). Frigate rejects `exec:` sources unless
   `GO2RTC_ALLOW_ARBITRARY_EXEC=true`.

@@ -36,6 +36,43 @@ class ModelsTest {
         assertTrue(cam.onvifConfigured)
     }
 
+    /** Production-like go2rtc config: Tapos with a talk-only tapo:// stream, an XMeye with a DVRIP backchannel. */
+    @Test fun talkStreamsFromGo2rtcSources() {
+        val root = FrigateJson.parseToJsonElement(
+            """{"go2rtc":{"streams":{
+                "neutron_fhd":["rtsp://admin:pw@192.168.1.107:554/user=admin&password=pw&channel=1","dvrip://admin:pw@192.168.1.107:34567?backchannel=1"],
+                "neutron_sd":"rtsp://admin:pw@192.168.1.107:554/stream=1",
+                "c212_1":["rtsp://u:p@192.168.1.64:554/stream1","ffmpeg:c212_1#audio=opus"],
+                "c212_2":["rtsp://u:p@192.168.1.64:554/stream2"],
+                "c212_talk":["tapo://cloud@192.168.1.64"],
+                "door_1":["rtsp://u:p@192.168.1.21:554/stream1"],
+                "door_talk":["tapo://cloud@192.168.1.21"],
+                "other_talk":["tapo://cloud@192.168.1.99"],
+                "plain":["rtsp://u:p@192.168.1.50/live"],
+                "off":["dvrip://u:p@192.168.1.50:34567?backchannel=0"]}},
+              "cameras":{
+                "neutron_n1":{"live":{"streams":{"fhd":"neutron_fhd","sd":"neutron_sd"}}},
+                "tapo_c212":{"live":{"streams":{"fhd":"c212_1","sd":"c212_2"}}},
+                "door":{"live":{"streams":{"Stream 1":"door_1"}}},
+                "plain":{"live":{"streams":{"plain":"plain"}}}}}""",
+        ) as JsonObject
+        val c = FrigateConfig.parse(root)
+        assertEquals(listOf("neutron_fhd"), c.camera("neutron_n1")!!.talkStreams)
+        assertEquals(listOf("c212_talk"), c.camera("tapo_c212")!!.talkStreams)
+        assertEquals(listOf("door_talk"), c.camera("door")!!.talkStreams) // not other_talk (another camera)
+        assertEquals(emptyList<String>(), c.camera("plain")!!.talkStreams) // backchannel=0 on the same host: off
+    }
+
+    @Test fun go2rtcSourceKeepsOnlyHostAndTalk() {
+        assertEquals(Go2rtcSource("192.168.1.64", true), Go2rtcSource.parse("tapo://p%40ss@192.168.1.64"))
+        assertEquals(Go2rtcSource("cam.lan", true), Go2rtcSource.parse("dvrip://a:b@CAM.lan:34567?backchannel=1"))
+        assertEquals(Go2rtcSource("cam.lan", false), Go2rtcSource.parse("rtsp://a:b@cam.lan:554/x?backchannel=10"))
+        assertEquals(Go2rtcSource("[fd00::5]", false), Go2rtcSource.parse("rtsp://[fd00::5]:554/x"))
+        assertEquals(Go2rtcSource(null, false), Go2rtcSource.parse("rtsp://127.0.0.1:8554/front"))
+        assertEquals(Go2rtcSource(null, false), Go2rtcSource.parse("ffmpeg:front#audio=opus"))
+        assertEquals(Go2rtcSource(null, true), Go2rtcSource.parse("exec:dd of=/tmp/x#backchannel=1#audio=pcma/8000"))
+    }
+
     @Test fun stats() {
         val s = FrigateStats.parse(FrigateJson.parseToJsonElement(fixture("stats.json")) as JsonObject)
         assertEquals("0.18.3-a19e23a", s.version)

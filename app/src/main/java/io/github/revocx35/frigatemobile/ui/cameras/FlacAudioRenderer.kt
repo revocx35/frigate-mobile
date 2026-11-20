@@ -19,6 +19,7 @@ import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DecoderAudioRenderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import io.github.revocx35.frigatemobile.core.AudioLeveler
 import io.github.revocx35.frigatemobile.core.FlacDecoder
 import java.nio.ByteOrder
 
@@ -75,6 +76,7 @@ private class FlacPcmDecoder(format: Format) :
     val channels = format.channelCount
     val sampleRate = format.sampleRate
     private val flac = FlacDecoder(FlacDecoder.streamInfoBitsPerSample(format.initializationData.firstOrNull()) ?: 16)
+    private var leveler = AudioLeveler(sampleRate, channels)
 
     init {
         setInitialInputBufferSize(if (format.maxInputSize > 0) format.maxInputSize else 64 * 1024)
@@ -99,8 +101,10 @@ private class FlacPcmDecoder(format: Format) :
         }
         val size = frames.sumOf { it.samples.size } * 2
         val out = outputBuffer.init(inputBuffer.timeUs, size).order(ByteOrder.LITTLE_ENDIAN)
+        if (reset) leveler = AudioLeveler(sampleRate, channels)
         for (f in frames) {
             if (f.channels != channels) return DecoderException("FLAC channel count changed")
+            leveler.process(f.samples) // cameras record very quietly: raise it to a hearable level
             for (s in f.samples) out.putShort(s)
         }
         out.position(0)

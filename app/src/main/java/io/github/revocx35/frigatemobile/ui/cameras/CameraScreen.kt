@@ -60,6 +60,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** One camera: live view (stream choice, sound), PTZ, its switches (admins), recent activity, recordings. */
 @Composable
@@ -99,13 +100,21 @@ fun CameraScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val onPtzError: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
-    // Two-way audio: the first of the camera's go2rtc streams whose camera has a talkback channel (Frigate's
-    // `/api/go2rtc/streams/<name>` lists an "audio, sendonly" media then). Probed apart from the screen: a Tapo
-    // source logs in to the camera for it.
+    // Two-way audio. First from the config (CameraInfo.talkStreams: a tapo:// or backchannel=1 source, also in a
+    // talk-only stream next to the live ones), with no request: probing a stream that holds a Tapo source makes
+    // go2rtc open a second Tapo session, which some Tapos never answer, and the probe then hangs for minutes.
+    // Otherwise ask go2rtc (`/api/go2rtc/streams/<name>` lists an "audio, sendonly" media, e.g. an ONVIF camera's
+    // RTSP backchannel), with a time limit.
     var talkStream by remember(camera) { mutableStateOf<String?>(null) }
-    LaunchedEffect(conn, camera, cam?.liveStreams) {
-        talkStream = cam?.liveStreams?.values?.distinct().orEmpty().firstOrNull { s ->
-            try { conn.client.go2rtcStream(s).twoWayAudio } catch (e: CancellationException) { throw e } catch (_: Exception) { false }
+    LaunchedEffect(conn, camera, cam?.liveStreams, cam?.talkStreams) {
+        talkStream = cam?.talkStreams?.firstOrNull() ?: cam?.liveStreams?.values?.distinct().orEmpty().firstOrNull { s ->
+            try {
+                withTimeoutOrNull(TALK_PROBE_TIMEOUT_MS) { conn.client.go2rtcStream(s).twoWayAudio } ?: false
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
         }
     }
     val talk = rememberTalkController(talkStream, onPtzError)
@@ -254,3 +263,6 @@ private fun FeatureSwitches(cam: CameraInfo, onMessage: suspend (String) -> Unit
         )
     }
 }
+
+/** A go2rtc talk probe that takes longer than this is treated as "no speaker" (a stuck camera session can hang it). */
+private const val TALK_PROBE_TIMEOUT_MS = 10_000L

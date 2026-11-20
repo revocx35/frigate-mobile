@@ -13,6 +13,7 @@ core/   (pure Kotlin/JVM, unit-tested without Android)
   MediaUrls        URLs of images (latest frame, thumbnails, snapshots) and video (MJPEG, HLS VOD, MP4)
   MjpegReader      splits Frigate's multipart MJPEG stream into JPEG frames
   FlacDecoder      FLAC frames -> 16-bit PCM (go2rtc's camera audio; Android's decoder rejects it)
+  AudioLeveler     automatic gain for that PCM (cameras record very quietly)
   LiveSockets      MseStream (go2rtc MSE over websocket: codec negotiation, fMP4 chunks), WebRtcSignaling (go2rtc
                    WebRTC offer/answer/candidates, for two-way audio) and FrigateSocket (Frigate's /ws, PTZ)
   Models           lenient models; config/stats parsed from JsonObject (Frigate adds fields every release)
@@ -119,7 +120,17 @@ app/
   captured at 8 kHz with hardware echo cancel/noise suppression and encoded as G.711 for the camera. Signaling uses
   the session client (cookie, pinning); media is DTLS-SRTP straight to go2rtc. No third-party ICE servers; off the
   LAN it works only where 8555 is reachable (VPN). Tap to talk, tap to stop; talking stops when the screen goes to
-  the background or is left. A talk button only appears for streams whose go2rtc reports a backchannel.
+  the background or is left. A talk button only appears for a camera with a backchannel. It is read from the config
+  first (`go2rtc.streams`: a `tapo://` or `backchannel=1` source in one of the camera's live streams, or in another
+  stream whose source has the same camera host, e.g. a talk-only stream; only the host and the flag are kept, never
+  credentials). Cameras without one are probed through `/api/go2rtc/streams/{name}` (ONVIF RTSP backchannel), with a
+  10 s limit. Reason: probing a live stream that also holds `tapo://` makes go2rtc start the Tapo video session and
+  open a second Tapo session for the backchannel, which a Tapo C212 never answers, so the probe hung for minutes and
+  no button appeared. A talk-only `tapo://` stream uses a single session (talk only, no video).
+- **Automatic gain for camera sound.** Measured on the owner's cameras (2026-11-20): Tapo C212 -60 dB mean / -35 dB
+  peak, XMeye -57/-32, Tapo doorbell -72/-63. `AudioLeveler` raises quiet sound towards half of full scale (cap 20x,
+  ~26 dB; peak envelope with instant attack and 1.5 s release; gain falls in ~5 ms, rises over ~1 s) and leaves loud
+  sound at 1x. It runs in `FlacAudioRenderer` (G.711 cameras); AAC/Opus streams use MediaCodec unchanged.
 - **PTZ over Frigate's websocket** like the web UI (there's no REST endpoint): one `/ws` connection per camera
   screen, opened when the camera reports PTZ features, closed when leaving. Press-and-hold sends a move, release
   sends `STOP`.

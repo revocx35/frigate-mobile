@@ -142,6 +142,19 @@ class AppUiTest {
         compose.onNodeWithTag("talk").assertContentDescriptionEquals("Talk")
     }
 
+    /** A Tapo's talk channel in its own go2rtc stream (same camera address): known from the config, no probe. */
+    @Test fun talkButtonFromConfigWithoutProbing() {
+        frigate.go2rtcStreamsJson = """{"garage":["rtsp://user:pw@cam-garage.invalid:554/stream1","ffmpeg:garage#audio=opus"],""" +
+            """"garage_talk":["tapo://cloudpw@cam-garage.invalid"]}"""
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_garage")
+        compose.onNodeWithTag("camera_garage").performScrollTo().performClick()
+        compose.waitForTag("talk")
+        compose.onNodeWithTag("talk").assertContentDescriptionEquals("Talk")
+        assertFalse(frigate.requests.any { it.startsWith("GET /api/go2rtc/streams/") })
+    }
+
     @Test fun cameraWithoutOnvifHasNoPtz() {
         start()
         signInAndTrust()

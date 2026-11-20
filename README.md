@@ -21,14 +21,18 @@ Frigate server's API directly, with no cloud service in between and no tracking.
 - **Cameras:** all cameras live (each camera's go2rtc sub stream, muted, only the cards on screen), or a still frame
   every 2 s for cameras without go2rtc / with "Live camera grid" off; online status, recording and detection badges.
 - **Live view:** the camera's own stream through Frigate's go2rtc (full resolution and frame rate, optional sound:
-  cameras' G.711 audio arrives as FLAC that Android can't decode, so the app decodes it itself),
+  cameras' G.711 audio arrives as FLAC that Android can't decode, so the app decodes it itself, and raises the
+  usually very quiet camera sound automatically),
   with a choice between the camera's streams (e.g. main/sub). Cameras without a go2rtc stream fall back to Frigate's
   MJPEG feed (three quality levels, optional detection boxes). Full screen in landscape; streams only while open.
 - **Two-way audio:** tap the microphone on a camera with a speaker to talk through it, tap again to stop (like
   Frigate's web UI: WebRTC to go2rtc's backchannel). Shown when Frigate's go2rtc reports the camera can receive audio,
   e.g. a Tapo (`tapo://` source with the TP-Link cloud password), an XMeye/DVRIP camera (`dvrip://…?backchannel=1`) or
-  an ONVIF camera with an audio backchannel. Needs go2rtc's WebRTC port (8555) reachable from the phone and listed in
-  `go2rtc: webrtc: candidates` (e.g. `- 192.168.1.10:8555`); on the LAN or over a VPN.
+  an ONVIF camera with an audio backchannel. For a Tapo, give the `tapo://` source its own go2rtc stream (e.g.
+  `c212_talk: [tapo://…@192.168.1.64]`) instead of adding it to the live stream: the app finds it by the camera's
+  address, and go2rtc can hang when a live stream mixes RTSP and `tapo://`. Needs go2rtc's WebRTC port (8555)
+  reachable from the phone and listed in `go2rtc: webrtc: candidates` (e.g. `- 192.168.1.10:8555`, plus `stun:8555`
+  for use away from home with 8555 forwarded on the router), or a VPN.
 - **PTZ (ONVIF):** hold the arrows to pan/tilt, zoom in/out, go to presets; also as an overlay in full screen.
   Shown for cameras with `onvif` configured in Frigate.
 - **Review:** alerts and detections (Frigate 0.14+ review items), newest first, grouped by day, filtered to

@@ -1,0 +1,1 @@
+Fixes: the talk button now shows for Tapo cameras. It is read from Frigate's config (a tapo:// or backchannel=1 source, also in a talk-only go2rtc stream for the same camera) instead of a go2rtc probe that could hang for minutes. Camera sound is now boosted automatically: IP cameras record very quietly, so quiet sound is raised up to 26 dB (loud sound is left alone).

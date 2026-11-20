@@ -29,6 +29,8 @@ class FakeFrigateServer {
     /** go2rtc MSE streams: refused (403) like a camera without a go2rtc stream. */
     @Volatile var mseAvailable = false
     @Volatile var reviewed = mutableSetOf<String>()
+    /** `go2rtc.streams` in the served config (the fixture has none), e.g. a talk-only `tapo://` stream. */
+    @Volatile var go2rtcStreamsJson: String? = null
     /** False = the server rejects the issued session (expired/revoked), as after `auth.session_length`. */
     @Volatile var acceptSession = true
     @Volatile private var token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.sig1" // gitleaks:allow (fake test JWT)
@@ -82,7 +84,9 @@ class FakeFrigateServer {
                     path.endsWith("/ptz/info") -> json("{}")
                     path == "/api/version" -> MockResponse.Builder().code(200).body("0.18.3-a19e23a").build()
                     path == "/api/profile" -> json(fixture("profile.json"))
-                    path == "/api/config" -> json(fixture("config.json"))
+                    path == "/api/config" -> json(fixture("config.json").let { c ->
+                        go2rtcStreamsJson?.let { c.replace("\"go2rtc\": {}", "\"go2rtc\": {\"streams\": $it}") } ?: c
+                    })
                     path == "/api/stats" -> json(fixture("stats.json"))
                     path == "/api/review/summary" -> json(fixture("review_summary.json"))
                     path == "/api/review" -> json(reviewList(request.url.queryParameter("reviewed")))
