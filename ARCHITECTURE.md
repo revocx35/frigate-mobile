@@ -12,6 +12,7 @@ core/   (pure Kotlin/JVM, unit-tested without Android)
   FrigateClient    the REST API (config, stats, review, events, recordings, camera switches)
   MediaUrls        URLs of images (latest frame, thumbnails, snapshots) and video (MJPEG, HLS VOD, MP4)
   MjpegReader      splits Frigate's multipart MJPEG stream into JPEG frames
+  FlacDecoder      FLAC frames -> 16-bit PCM (go2rtc's camera audio; Android's decoder rejects it)
   LiveSockets      MseStream (go2rtc MSE over websocket: codec negotiation, fMP4 chunks) and FrigateSocket
                    (Frigate's /ws, used for PTZ commands)
   Models           lenient models; config/stats parsed from JsonObject (Frigate adds fields every release)
@@ -93,11 +94,16 @@ app/
   shown. Latency stays low: small buffers and playback at 1.15–1.5x while more than 1.5 s is buffered. Reconnects
   make a new socket and player (the stream can't be resumed); decoder failures retry once with software decoders.
   HEVC is offered only when the phone has an HEVC decoder.
-- **Audio only when unmuted.** Most IP cameras send PCMA audio, which go2rtc turns into 8 kHz FLAC for MSE. In ExoPlayer
-  an audio track becomes the playback clock: bursty camera audio made video crawl (seen with Tapo cameras in 1.1.0),
-  and Android's `c2.android.flac.decoder` rejects that FLAC outright (emulator: `CodecException 0x80000000`). So muted
-  playback asks go2rtc for video codecs only; unmuting reconnects with audio codecs, and an audio renderer error or a
-  playback position stuck for 3 s drops back to video only ("No sound for this camera").
+- **Audio only when unmuted, decoded by the app.** Most IP cameras send PCMA audio; go2rtc re-packs it for MSE as
+  16-bit mono 8 kHz FLAC with VERBATIM subframes (1024-sample frames) and a STREAMINFO claiming 32768-sample blocks
+  (checked on the owner's Tapo C212, 2026-11-20). Android's `c2.android.flac.decoder` rejects it (emulator:
+  `CodecException 0x80000000`; phones: black picture, since the audio track gates playback). So:
+  - muted playback asks go2rtc for video codecs only (an audio track is also the playback clock);
+  - unmuting reconnects with audio codecs, and FLAC is played by `ui/cameras/FlacAudioRenderer.kt` (a Media3
+    `DecoderAudioRenderer`, put before the MediaCodec renderers by `LiveRenderersFactory`) using `core/FlacDecoder`
+    (all subframe types; tested sample-exact against ffmpeg);
+  - safety nets: an audio renderer error, no first frame within 10 s, or a position frozen for 3 s while playing
+    drops back to video only ("No sound for this camera").
 - **PTZ over Frigate's websocket** like the web UI (there's no REST endpoint): one `/ws` connection per camera
   screen, opened when the camera reports PTZ features, closed when leaving. Press-and-hold sends a move, release
   sends `STOP`.

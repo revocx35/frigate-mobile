@@ -6,13 +6,13 @@ and the threat model are in `ARCHITECTURE.md`.
 
 ## Layout
 - `core/`: pure Kotlin/JVM. `FrigateClient` (REST API), `FrigateSession` (cookie, CSRF, refresh, re-login
-  interceptor), `MediaUrls`, `MjpegReader`, `LiveSockets.kt` (`MseStream` go2rtc MSE, `FrigateSocket` /ws + PTZ),
+  interceptor), `MediaUrls`, `MjpegReader`, `LiveSockets.kt` (`MseStream` go2rtc MSE, `FrigateSocket` /ws + PTZ), `FlacDecoder` (camera audio),
   `Models.kt`, `ServerAddress` (HTTPS-only parsing).
   Tests: `core/src/test` (unit, MockWebServer over TLS, `LiveFrigateTest` against a real Frigate).
   Recorded Frigate 0.18.3 responses: `core/src/test/resources/fixtures/0.18.3/` (copied to `app/src/test/resources/fixtures/`).
 - `app/`: `data/` (AppGraph DI, AccountStore + Keystore cipher, ServerTrust pinning, Settings, AlertWorker),
   `ui/` (screens per feature, `components/Common.kt` loader/formatting, `theme/AppIcons.kt` generated).
-  Live: `ui/cameras/LiveView.kt` (MSE player + MJPEG fallback), `MjpegView.kt`, `PtzControls.kt`, `LatestFrame.kt`.
+  Live: `ui/cameras/LiveView.kt` (MSE player + MJPEG fallback), `FlacAudioRenderer.kt` (own FLAC audio renderer), `MjpegView.kt`, `PtzControls.kt`, `LatestFrame.kt`.
   Tests: `app/src/test` (Robolectric UI tests against `FakeFrigateServer`, screenshot tests, worker test).
 - `scripts/`: `dev-frigate.sh` (disposable Frigate in Docker), `emulator.sh`, `e2e-release.py`, `release.sh`, `gen_icons.py`.
 - `fastlane/metadata/`: store texts and per-versionCode changelogs. `docs/screenshots/`: README images (from e2e run).
@@ -21,7 +21,7 @@ and the threat model are in `ARCHITECTURE.md`.
 - JDK 21 is required (`export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`; JDK 25 here has no javac toolchain
   capability for AGP). SDK at `/opt/android-sdk` via `local.properties` (not committed).
 - On the dev LXC wrap heavy jobs: `heavy ./gradlew …` (capped CPU/RAM).
-- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (58 tests; 5 skipped: the live one without a server, screenshots unless recording).
+- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (63 tests; 5 skipped: the live one without a server, screenshots unless recording).
 - Live tests: `eval "$(scripts/dev-frigate.sh up)"` (Frigate `stable` on https://127.0.0.1:18971, two looping test
   cameras, admin password from its first-start log, cert fingerprint exported), rerun `:core:test`.
   `scripts/dev-frigate.sh down` removes it. The image is ~9 GB on disk: remove it when done if disk is tight.
@@ -71,6 +71,9 @@ Losing the keystore means users must uninstall to update.
   `LiveSocketsTest` and `AppUiTest.ptzHoldMovesAndReleaseStops` (fake server), not by the e2e run.
 - Grid cards are clickable Cards: their inner test tags are merged away (Robolectric/UI Automator see only
   `camera_<name>`). The grid's go2rtc stream is the camera's last `live.streams` entry.
+- Don't remove `LiveRenderersFactory`/`FlacAudioRenderer` in favour of MediaCodec: Android's FLAC decoder can't play
+  go2rtc's camera audio (the view went black with sound on in 1.2.0). FLAC fixtures in `core/src/test/resources/flac`
+  are ffmpeg-made tones/noise with ffmpeg's decode as `.pcm`.
 - Never put audio codecs in the MSE request while muted (see ARCHITECTURE "Audio only when unmuted"): the dev Frigate's
   "front" stream carries PCMA audio on purpose, and the e2e run checks frame smoothness muted and unmuted.
 - PTZ taps: `MIN_MOVE_MS` (700) in `PtzControls.kt`; shorter moves are ignored by Tapo cameras.

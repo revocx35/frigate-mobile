@@ -20,7 +20,8 @@ Frigate server's API directly, with no cloud service in between and no tracking.
 
 - **Cameras:** all cameras live (each camera's go2rtc sub stream, muted, only the cards on screen), or a still frame
   every 2 s for cameras without go2rtc / with "Live camera grid" off; online status, recording and detection badges.
-- **Live view:** the camera's own stream through Frigate's go2rtc (full resolution and frame rate, optional sound),
+- **Live view:** the camera's own stream through Frigate's go2rtc (full resolution and frame rate, optional sound:
+  cameras' G.711 audio arrives as FLAC that Android can't decode, so the app decodes it itself),
   with a choice between the camera's streams (e.g. main/sub). Cameras without a go2rtc stream fall back to Frigate's
   MJPEG feed (three quality levels, optional detection boxes). Full screen in landscape; streams only while open.
 - **PTZ (ONVIF):** hold the arrows to pan/tilt, zoom in/out, go to presets; also as an overlay in full screen.

@@ -44,7 +44,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -145,6 +144,7 @@ private fun MseView(
 
     LaunchedEffect(stream, active, generation, software, withAudio) {
         if (!active) return@LaunchedEffect
+        showingVideo = false
         if (failures > 0) delay(min(15_000L, 1_000L shl failures.coerceAtMost(4)))
         val url = conn.client.urls.mse(stream)
         val mse = try {
@@ -162,7 +162,7 @@ private fun MseView(
             }
             return@LaunchedEffect
         }
-        val renderers = DefaultRenderersFactory(context)
+        val renderers = LiveRenderersFactory(context)
             .setEnableDecoderFallback(true)
             .apply { if (software) setMediaCodecSelector(softwareFirst()) }
         val load = DefaultLoadControl.Builder().setBufferDurationsMs(500, 4_000, 250, 250).build()
@@ -210,10 +210,20 @@ private fun MseView(
             launch {
                 var lastPosition = -1L
                 var stuck = 0
+                var waited = 0
                 while (isActive) {
                     delay(1_000)
-                    // Audio clock stalled (video waits for audio that arrives in bursts): drop the sound.
-                    if (withAudio && exo.isPlaying && exo.currentPosition == lastPosition) {
+                    if (!showingVideo) {
+                        // No picture yet. With sound, the audio track is the usual suspect (it gates playback start):
+                        // retry without it. Without sound, reconnect.
+                        if (++waited >= FIRST_FRAME_TIMEOUT_S) {
+                            if (withAudio) noSound = true
+                            else { status = "No picture from the camera"; failures++; generation++ }
+                        }
+                        continue
+                    }
+                    // Audio clock stalled (video waits for audio): drop the sound.
+                    if (withAudio && exo.playWhenReady && exo.currentPosition == lastPosition) {
                         if (++stuck >= 3) noSound = true
                     } else {
                         stuck = 0
@@ -337,3 +347,6 @@ private fun softwareFirst(): MediaCodecSelector = MediaCodecSelector { mime, sec
 private fun hasDecoder(mime: String): Boolean = runCatching {
     MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { !it.isEncoder && it.supportedTypes.any { t -> t.equals(mime, true) } }
 }.getOrDefault(false)
+
+/** Seconds to wait for the first decoded frame before giving up on this try. */
+private const val FIRST_FRAME_TIMEOUT_S = 10

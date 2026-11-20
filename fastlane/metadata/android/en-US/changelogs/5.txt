@@ -1,0 +1,1 @@
+Fixed: turning on the sound made the live view go black. Cameras' audio arrives from go2rtc in a FLAC variant Android can't play; the app now decodes it itself, so you get picture and sound. If a camera's sound still can't play, the picture keeps running without it.

@@ -287,6 +287,11 @@ def run(apk):
     smooth = distinct_frames(find(rid="live"))
     print(f"     live view: {smooth}/8 distinct frames (sound on)", flush=True)
     assert smooth >= 6, f"live view with sound is stuttering: only {smooth} of 8 grabs differ"
+    assert not exists(rid="no_sound"), "sound was dropped: the camera's FLAC audio didn't play"
+    uid = adb("shell", "cmd", "package", "list", "packages", "-U", PKG).split("uid:")[-1].strip()
+    players = [l for l in adb("shell", "dumpsys", "audio").splitlines() if f"u/pid:{uid}/" in l and "state:started" in l]
+    print(f"     audio players started by the app: {len(players)}", flush=True)
+    assert players, "no audio is playing although sound is on"
     tap(rid="mute")
     assert not exists(rid="live_fallback"), "fell back to MJPEG although the camera has a go2rtc stream"
     assert not exists(contains="Reconnecting"), "live view failed"
