@@ -72,7 +72,7 @@ fun rememberFrigatePlayer(url: String): FrigatePlayer {
     val player = remember(url, software) {
         val renderers = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
-            .apply { if (software) setMediaCodecSelector(SoftwareFirstSelector) }
+            .apply { if (software) setMediaCodecSelector(softwareFirstSelector()) }
         val exo = ExoPlayer.Builder(context, renderers)
             .setMediaSourceFactory(DefaultMediaSourceFactory(OkHttpDataSource.Factory(conn.http)))
             .build()
@@ -116,7 +116,7 @@ fun rememberFrigatePlayer(url: String): FrigatePlayer {
 
 /** Android's software decoders before hardware ones. */
 @OptIn(UnstableApi::class)
-private val SoftwareFirstSelector = MediaCodecSelector { mime, secure, tunneling ->
+private fun softwareFirstSelector(): MediaCodecSelector = MediaCodecSelector { mime, secure, tunneling ->
     MediaCodecUtil.getDecoderInfos(mime, secure, tunneling).sortedBy { if (it.softwareOnly) 0 else 1 }
 }
 
