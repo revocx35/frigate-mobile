@@ -120,7 +120,7 @@ fun SystemScreen(graph: AppGraph) {
                 graph.settings.update { it.copy(liveQuality = LiveQuality.entries[i]) }
             }
             ListItem(
-                headlineContent = { Text("Show detection boxes") },
+                headlineContent = { Text("Show detection boxes") }, supportingContent = { Text("MJPEG live view only") },
                 trailingContent = { Switch(checked = settings.showBoxes, onCheckedChange = { on -> graph.settings.update { it.copy(showBoxes = on) } }) },
             )
             ChoiceItem("Theme", settings.theme.label, ThemeMode.entries.map { it.label }) { i ->

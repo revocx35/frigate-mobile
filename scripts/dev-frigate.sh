@@ -2,7 +2,8 @@
 # Disposable Frigate for live tests and the emulator e2e run. Never point the tests at a real Frigate.
 #   scripts/dev-frigate.sh up     -> start Frigate (TLS + auth on 127.0.0.1:18971), print the test env vars
 #   scripts/dev-frigate.sh down   -> remove the container and its data
-# One camera ("front") loops a generated test video; the CPU detector runs at 2 fps to stay light.
+# Two cameras loop a generated test video; the CPU detector runs at 2 fps to stay light. "front" also has a go2rtc
+# stream (720p, 25 fps, from live.mp4) for the full-quality live view; "garage" has none (MJPEG fallback).
 # Inside the Android emulator the server is https://10.0.2.2:18971.
 set -euo pipefail
 
@@ -19,6 +20,10 @@ case "${1:-up}" in
     if [ ! -f "$DIR/media/test.mp4" ]; then
       ffmpeg -loglevel error -f lavfi -i "testsrc2=size=640x360:rate=10" -t 60 -c:v libx264 -profile:v baseline -pix_fmt yuv420p \
         -g 20 "$DIR/media/test.mp4"
+    fi
+    if [ ! -f "$DIR/media/live.mp4" ]; then
+      ffmpeg -loglevel error -f lavfi -i "testsrc2=size=1280x720:rate=25" -t 600 -c:v libx264 -preset veryfast -pix_fmt yuv420p \
+        -g 50 "$DIR/media/live.mp4"
     fi
     cat > "$DIR/config/config.yml" <<YAML
 mqtt:
@@ -41,6 +46,10 @@ record:
       days: 1
 snapshots:
   enabled: true
+go2rtc:
+  streams:
+    front:
+      - ffmpeg:/media/frigate/live.mp4#video=copy
 cameras:
   front:
     ffmpeg:

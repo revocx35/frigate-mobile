@@ -6,11 +6,13 @@ and the threat model are in `ARCHITECTURE.md`.
 
 ## Layout
 - `core/`: pure Kotlin/JVM. `FrigateClient` (REST API), `FrigateSession` (cookie, CSRF, refresh, re-login
-  interceptor), `MediaUrls`, `MjpegReader`, `Models.kt`, `ServerAddress` (HTTPS-only parsing).
+  interceptor), `MediaUrls`, `MjpegReader`, `LiveSockets.kt` (`MseStream` go2rtc MSE, `FrigateSocket` /ws + PTZ),
+  `Models.kt`, `ServerAddress` (HTTPS-only parsing).
   Tests: `core/src/test` (unit, MockWebServer over TLS, `LiveFrigateTest` against a real Frigate).
   Recorded Frigate 0.18.3 responses: `core/src/test/resources/fixtures/0.18.3/` (copied to `app/src/test/resources/fixtures/`).
 - `app/`: `data/` (AppGraph DI, AccountStore + Keystore cipher, ServerTrust pinning, Settings, AlertWorker),
   `ui/` (screens per feature, `components/Common.kt` loader/formatting, `theme/AppIcons.kt` generated).
+  Live: `ui/cameras/LiveView.kt` (MSE player + MJPEG fallback), `MjpegView.kt`, `PtzControls.kt`, `LatestFrame.kt`.
   Tests: `app/src/test` (Robolectric UI tests against `FakeFrigateServer`, screenshot tests, worker test).
 - `scripts/`: `dev-frigate.sh` (disposable Frigate in Docker), `emulator.sh`, `e2e-release.py`, `release.sh`, `gen_icons.py`.
 - `fastlane/metadata/`: store texts and per-versionCode changelogs. `docs/screenshots/`: README images (from e2e run).
@@ -19,11 +21,13 @@ and the threat model are in `ARCHITECTURE.md`.
 - JDK 21 is required (`export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`; JDK 25 here has no javac toolchain
   capability for AGP). SDK at `/opt/android-sdk` via `local.properties` (not committed).
 - On the dev LXC wrap heavy jobs: `heavy ./gradlew …` (capped CPU/RAM).
-- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (48 tests; the live one is skipped without a server).
+- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (57 tests; 5 skipped: the live one without a server, screenshots unless recording).
 - Live tests: `eval "$(scripts/dev-frigate.sh up)"` (Frigate `stable` on https://127.0.0.1:18971, two looping test
   cameras, admin password from its first-start log, cert fingerprint exported), rerun `:core:test`.
   `scripts/dev-frigate.sh down` removes it. The image is ~9 GB on disk: remove it when done if disk is tight.
 - Screenshots: `./gradlew :app:recordRoborazziDebug --tests '*ScreenshotTest*'` → `app/build/screenshots/`.
+- The dev Frigate's "front" camera has a go2rtc stream (720p/25 fps from `live.mp4`), "garage" has none, so the e2e
+  run checks both the MSE path and the MJPEG fallback.
 - Release check on Android 17: `AVD=npm_test scripts/emulator.sh start` (or `scripts/emulator.sh setup` once for
   its own AVD), Frigate up, `./gradlew :app:assembleRelease`, `python3 scripts/e2e-release.py` → `build/e2e/`.
   Run it before every release.
@@ -60,6 +64,13 @@ Losing the keystore means users must uninstall to update.
 - Frigate's generated cert has CN `*`; a new container generates a new cert (new fingerprint).
 - The emulator's `c2.goldfish.h264.decoder` fails on Frigate recordings; the player's software-decoder retry
   handles it. Live MJPEG doesn't use MediaCodec.
+- Frigate 0.18 has no HTTP passthrough to go2rtc: live video is the MSE websocket only. A `src` that isn't an
+  existing go2rtc stream gets 403 (by design: go2rtc would otherwise start an ad hoc producer). Never build `src`
+  from user input; take it from `live.streams`.
+- PTZ has no REST API: it's `<camera>/ptz` on `/ws`. The dev Frigate has no ONVIF camera, so PTZ is covered by
+  `LiveSocketsTest` and `AppUiTest.ptzHoldMovesAndReleaseStops` (fake server), not by the e2e run.
+- The live setting is stored under `live_mode` (1.1.0+); the old `live_quality` key is ignored on purpose so 1.0.x
+  users move to the full stream.
 - Compose dialogs are separate windows: their test tags are not resource ids for UI Automator; match by text.
 - Robolectric needs `WorkManagerTestInitHelper` (done in `TestApp`).
 - `mipmap-anydpi-v26` must keep its `-v26` suffix.

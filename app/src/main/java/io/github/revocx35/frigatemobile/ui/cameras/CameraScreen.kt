@@ -1,6 +1,7 @@
 package io.github.revocx35.frigatemobile.ui.cameras
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -25,6 +27,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,13 +38,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.revocx35.frigatemobile.core.CameraFeature
 import io.github.revocx35.frigatemobile.core.CameraInfo
+import io.github.revocx35.frigatemobile.core.PtzInfo
 import io.github.revocx35.frigatemobile.core.toUserMessage
 import io.github.revocx35.frigatemobile.data.AppSettings
+import io.github.revocx35.frigatemobile.data.SettingsStore
 import io.github.revocx35.frigatemobile.ui.components.EmptyBox
 import io.github.revocx35.frigatemobile.ui.components.LoadContent
 import io.github.revocx35.frigatemobile.ui.components.LocalConnection
@@ -57,11 +61,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** One camera: live view, its switches (admins), recent activity and a way into its recordings. */
+/** One camera: live view (stream choice, sound), PTZ, its switches (admins), recent activity, recordings. */
 @Composable
 fun CameraScreen(
     camera: String,
     settings: AppSettings,
+    store: SettingsStore,
     onBack: () -> Unit,
     onOpenReview: (String) -> Unit,
     onOpenRecordings: (String) -> Unit,
@@ -74,21 +79,61 @@ fun CameraScreen(
             cam to reviews.await()
         }
     }
+    val cam = loader.value?.first
+    // ONVIF answers can take seconds (Frigate connects to the camera on first use): load apart from the screen.
+    var ptz by remember(camera) { mutableStateOf<PtzInfo?>(null) }
+    LaunchedEffect(conn, camera, cam?.onvifConfigured) {
+        if (cam?.onvifConfigured == true && ptz == null) {
+            ptz = try { conn.client.ptzInfo(camera) } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+        }
+    }
+    val socket = if (ptz?.available == true) rememberFrigateSocket() else null
+
     var fullscreen by rememberSaveable { mutableStateOf(false) }
-    val liveUrl = conn.client.urls.mjpeg(camera, settings.liveQuality.fps, settings.liveQuality.height, settings.showBoxes).toString()
+    var muted by rememberSaveable { mutableStateOf(true) }
+    val streams = cam?.liveStreams.orEmpty()
+    var chosen by remember(camera) { mutableStateOf(store.liveStream(camera)) }
+    val streamLabel = chosen?.takeIf { it in streams } ?: streams.keys.firstOrNull()
+    val go2rtcStream = if (settings.liveQuality.full) streamLabel?.let { streams[it] } else null
+    val mjpegUrl = conn.client.urls.mjpeg(camera, settings.liveQuality.fps, settings.liveQuality.height, settings.showBoxes).toString()
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val onPtzError: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
 
     if (fullscreen) {
-        FullscreenLive(liveUrl, camera) { fullscreen = false }
+        FullscreenEffect { fullscreen = false }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            LiveView(go2rtcStream, mjpegUrl, "Live view of ${cam?.title ?: camera}", muted, Modifier.fillMaxSize())
+            Row(Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp)) {
+                if (go2rtcStream != null) {
+                    IconButton(onClick = { muted = !muted }, colors = overlayButtonColors()) {
+                        Icon(if (muted) AppIcons.VolumeOff else AppIcons.VolumeUp, if (muted) "Unmute" else "Mute")
+                    }
+                }
+                IconButton(onClick = { fullscreen = false }, colors = overlayButtonColors()) { Icon(AppIcons.FullscreenExit, "Exit full screen") }
+            }
+            val info = ptz
+            if (socket != null && info != null) {
+                PtzControls(camera, info, socket, onPtzError, Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(16.dp), overlay = true)
+            }
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        }
         return
     }
 
-    val snackbar = remember { SnackbarHostState() }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(loader.value?.first?.title ?: camera) },
+                title = { Text(cam?.title ?: camera) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(AppIcons.Back, "Back") } },
-                actions = { IconButton(onClick = { fullscreen = true }) { Icon(AppIcons.Fullscreen, "Full screen") } },
+                actions = {
+                    if (go2rtcStream != null) {
+                        IconButton(onClick = { muted = !muted }, modifier = Modifier.testTag("mute")) {
+                            Icon(if (muted) AppIcons.VolumeOff else AppIcons.VolumeUp, if (muted) "Unmute" else "Mute")
+                        }
+                    }
+                    IconButton(onClick = { fullscreen = true }) { Icon(AppIcons.Fullscreen, "Full screen") }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -100,7 +145,26 @@ fun CameraScreen(
             }
             LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                 item {
-                    MjpegView(liveUrl, "Live view of ${cam.title}", Modifier.fillMaxWidth().aspectRatio(cam.aspectRatio))
+                    LiveView(go2rtcStream, mjpegUrl, "Live view of ${cam.title}", muted, Modifier.fillMaxWidth().aspectRatio(cam.aspectRatio))
+                }
+                if (settings.liveQuality.full && streams.size > 1) {
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(AppIcons.Stream, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            streams.keys.forEach { label ->
+                                FilterChip(
+                                    selected = label == streamLabel,
+                                    onClick = { chosen = label; store.setLiveStream(camera, label) },
+                                    label = { Text(label) },
+                                    modifier = Modifier.testTag("stream_$label"),
+                                )
+                            }
+                        }
+                    }
                 }
                 item {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -110,6 +174,11 @@ fun CameraScreen(
                             Text("Recordings")
                         }
                     }
+                }
+                val info = ptz
+                if (socket != null && info != null) {
+                    item { SectionTitle("Pan, tilt and zoom") }
+                    item { PtzControls(camera, info, socket, onPtzError) }
                 }
                 if (conn.account.isAdmin) {
                     item { SectionTitle("Camera settings") }
@@ -124,6 +193,10 @@ fun CameraScreen(
         }
     }
 }
+
+@Composable
+private fun overlayButtonColors() =
+    IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.5f), contentColor = Color.White)
 
 /** Runtime switches (Frigate 0.17+ API). Shown optimistically; Frigate applies them within a second. */
 @Composable
@@ -167,18 +240,5 @@ private fun FeatureSwitches(cam: CameraInfo, onMessage: suspend (String) -> Unit
                 )
             },
         )
-    }
-}
-
-@Composable
-private fun FullscreenLive(url: String, camera: String, onExit: () -> Unit) {
-    FullscreenEffect(onExit)
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        MjpegView(url, "Live view of $camera", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-        IconButton(
-            onClick = onExit,
-            colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.5f), contentColor = Color.White),
-            modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp),
-        ) { Icon(AppIcons.FullscreenExit, "Exit full screen") }
     }
 }

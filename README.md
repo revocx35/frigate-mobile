@@ -18,10 +18,13 @@ Frigate server's API directly, with no cloud service in between and no tracking.
 
 ## Features
 
-- **Cameras:** all cameras with a frame that refreshes every 10 s while visible, online status, recording and
+- **Cameras:** all cameras with a frame that refreshes every 2 s while visible, online status, recording and
   detection badges.
-- **Live view:** Frigate's MJPEG live stream in three quality levels, full screen in landscape, optional detection
-  boxes. Streams only while the screen is open.
+- **Live view:** the camera's own stream through Frigate's go2rtc (full resolution and frame rate, optional sound),
+  with a choice between the camera's streams (e.g. main/sub). Cameras without a go2rtc stream fall back to Frigate's
+  MJPEG feed (three quality levels, optional detection boxes). Full screen in landscape; streams only while open.
+- **PTZ (ONVIF):** hold the arrows to pan/tilt, zoom in/out, go to presets; also as an overlay in full screen.
+  Shown for cameras with `onvif` configured in Frigate.
 - **Review:** alerts and detections (Frigate 0.14+ review items), newest first, grouped by day, filtered to
   unreviewed items and by camera, with unreviewed counts. "Mark all as reviewed".
 - **Review item:** plays the recording around the activity (seekable HLS), lists tracked objects with score, zones

@@ -142,6 +142,10 @@ data class CameraInfo(
     val height: Int = 0,
     val order: Int = 0,
     val dashboard: Boolean = true,
+    /** `live.streams`: label (e.g. "fhd") -> go2rtc stream name, in config order. Frigate fills in {name: name}. */
+    val liveStreams: Map<String, String> = emptyMap(),
+    /** `onvif.host` is set: the camera may support PTZ (ask `GET /api/{camera}/ptz/info`). */
+    val onvifConfigured: Boolean = false,
 ) {
     val title: String get() = friendlyName?.takeIf { it.isNotBlank() } ?: name.replace('_', ' ').replaceFirstChar { it.uppercase() }
     val aspectRatio: Float get() = if (width > 0 && height > 0) width.toFloat() / height else 16f / 9f
@@ -169,11 +173,31 @@ data class FrigateConfig(val cameras: List<CameraInfo>) {
                     height = c.obj("detect").int("height") ?: 0,
                     order = c.obj("ui").int("order") ?: 0,
                     dashboard = c.obj("ui").bool("dashboard") ?: true,
+                    liveStreams = c.obj("live").obj("streams").mapNotNull { (label, v) ->
+                        (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }?.let { label to it }
+                    }.toMap(),
+                    onvifConfigured = !c.obj("onvif").str("host").isNullOrBlank(),
                 )
             }.sortedWith(compareBy({ it.order }, { it.name }))
             return FrigateConfig(cams)
         }
     }
+}
+
+/**
+ * `GET /api/{camera}/ptz/info`: `{}` when the camera has no ONVIF. Features: `pt` (continuous pan/tilt), `zoom`,
+ * `pt-r`/`zoom-r` (relative), `zoom-a` (absolute), `focus`, `pt-r-fov`. Presets are names.
+ */
+@Serializable
+data class PtzInfo(
+    val name: String = "",
+    val features: List<String> = emptyList(),
+    val presets: List<String> = emptyList(),
+) {
+    val canMove: Boolean get() = "pt" in features
+    val canZoom: Boolean get() = "zoom" in features
+    val canFocus: Boolean get() = "focus" in features
+    val available: Boolean get() = canMove || canZoom || presets.isNotEmpty()
 }
 
 /** `GET /api/stats`, reduced to what the System screen shows. */

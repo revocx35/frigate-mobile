@@ -12,6 +12,8 @@ core/   (pure Kotlin/JVM, unit-tested without Android)
   FrigateClient    the REST API (config, stats, review, events, recordings, camera switches)
   MediaUrls        URLs of images (latest frame, thumbnails, snapshots) and video (MJPEG, HLS VOD, MP4)
   MjpegReader      splits Frigate's multipart MJPEG stream into JPEG frames
+  LiveSockets      MseStream (go2rtc MSE over websocket: codec negotiation, fMP4 chunks) and FrigateSocket
+                   (Frigate's /ws, used for PTZ commands)
   Models           lenient models; config/stats parsed from JsonObject (Frigate adds fields every release)
 
 app/
@@ -23,7 +25,9 @@ app/
   data/AppIcon        icon choice: enables one launcher <activity-alias> (.LauncherDefault/.LauncherBird); custom
                       image stored in filesDir/logo (cropped square PNG, 20 MB input cap) + pinned shortcut
   ui/AppRoot          login vs. main shell, Navigation Compose routes
-  ui/cameras          grid (latest.jpg refreshed every 10 s), camera screen (MJPEG live, switches, activity)
+  ui/cameras          grid (LatestFrame: latest.jpg polled every 2 s through the session client, last frame kept per
+                      camera in Connection.frames), camera screen (LiveView: MSE player with MJPEG fallback, stream
+                      chips, mute; PtzControls; switches; activity)
   ui/review           review queue + review item (HLS playback, tracked objects, snapshots)
   ui/recordings       per-camera day/hour list
   ui/player           ExoPlayer (Media3) through the session's OkHttp client; software-decoder retry
@@ -55,6 +59,18 @@ app/
 - Review thumbnails: `thumb_path` is a file path (`/media/frigate/clips/review/…webp`) served under `/clips/`.
 - `GET /api/event_ids?ids=a,b` (fallback: `GET /api/events/{id}` each). `sub_label` is a string (old) or
   `[name, score]` (new); scores live in `data.top_score` in newer releases.
+- go2rtc is reachable only as websockets: `GET /live/mse/api/ws?src=<go2rtc stream>` (MSE) and
+  `/live/webrtc/api/ws`. There is no `/api/go2rtc/api/...` HTTP passthrough (no stream.mp4/m3u8). nginx's auth
+  check (`$go2rtc_stream_proxy`) answers **403** when `src` isn't an existing go2rtc stream or the role may not see
+  the camera. MSE protocol: client sends `{"type":"mse","value":"<codec list>"}`, go2rtc answers
+  `{"type":"mse","value":"video/mp4; codecs=..."}` (or `{"type":"error",...}`), then binary fMP4 (init + fragments).
+- `cameras.X.live.streams` maps labels (e.g. `fhd`, `sd`) to go2rtc stream names, in config order; Frigate fills in
+  `{name: name}` when unset, even if go2rtc has no such stream. Such a name passes nginx's check (it belongs to the
+  camera) and go2rtc answers `{"type":"error","value":"mse: stream not found"}` (seen on 0.18.3) → MJPEG fallback.
+- PTZ: `GET /api/{camera}/ptz/info` → `{name, features: [pt, zoom, pt-r, zoom-r, zoom-a, focus, pt-r-fov], presets:
+  [names]}`, or `{}` without ONVIF (`onvif.host` empty). Commands only over the websocket `/ws`:
+  `{"topic":"<camera>/ptz","payload":"MOVE_UP|MOVE_DOWN|MOVE_LEFT|MOVE_RIGHT|ZOOM_IN|ZOOM_OUT|STOP|preset_<name>"}`;
+  continuous moves run until `STOP`. Allowed for admins and roles that may see the camera. No REST endpoint.
 - `GET /api/{camera}` = MJPEG (`multipart/x-mixed-replace`, parts **without Content-Length**; `fps`, `height`,
   pre-0.15 `h`, `bbox`). `GET /api/{camera}/latest.jpg?height=`.
 - `GET /vod/{camera}/start/{s}/end/{e}/index.m3u8` = HLS (fMP4 segments, relative URLs) → seekable playback.
@@ -67,9 +83,19 @@ app/
 
 ## 4. Key decisions
 
-- **Live view = MJPEG**, not go2rtc/WebRTC: Frigate exposes go2rtc only as MSE/WebRTC over websockets, which needs a
-  web engine; MJPEG works through the same authenticated OkHttp client, with no extra dependencies. Trade-off: no
-  audio, detect-stream resolution.
+- **Live view = go2rtc MSE in ExoPlayer, MJPEG as fallback.** Frigate's MJPEG is re-encoded from the detect stream
+  (detect resolution, at most detect fps), which looked poor. go2rtc's MSE websocket carries the camera's own H.264/
+  H.265 + audio as fragmented MP4; a custom Media3 `DataSource` feeds those chunks to `FragmentedMp4Extractor`, all
+  through the session's OkHttp client (cookie + pinning), no WebView. The stream is negotiated before the player is
+  built, so a refused stream (403/no go2rtc stream/codec mismatch) falls back to MJPEG immediately with the reason
+  shown. Latency stays low: small buffers and playback at 1.15–1.5x while more than 1.5 s is buffered. Reconnects
+  make a new socket and player (the stream can't be resumed); decoder failures retry once with software decoders.
+  HEVC is offered only when the phone has an HEVC decoder.
+- **PTZ over Frigate's websocket** like the web UI (there's no REST endpoint): one `/ws` connection per camera
+  screen, opened when the camera reports PTZ features, closed when leaving. Press-and-hold sends a move, release
+  sends `STOP`.
+- **Grid frames polled directly**, not through Coil: each card fetches `latest.jpg` every 2 s while visible and
+  resumed, swaps the bitmap only after decoding (no flicker), so no image cache can pin an old frame.
 - **Recordings = HLS VOD** (Media3 ExoPlayer + OkHttp data source): instant start and seeking. If the hardware
   H.264 decoder fails mid-stream (seen on the emulator's goldfish decoder; some phones reject camera streams too),
   the player restarts once with software decoders first, at the same position.
@@ -95,11 +121,13 @@ Assets: the Frigate password, the session JWT (full access to cameras and record
 | Password kept longer than wanted | Stored only if "stay signed in" is checked; sign-out deletes token, password and cached images. Frigate JWTs can't be revoked server-side; they expire after `auth.session_length`. |
 | Brute force via the app | Frigate's server-side rate limit (`auth.failed_login_rate_limit`); the app shows 429 as "too many attempts" and never retries a failed login in a loop (one silent re-login per 401). |
 | Lock-screen exposure | Notification channel and notifications are `VISIBILITY_PRIVATE` with a public version without thumbnail. |
+| Live stream / PTZ abuse | Both websockets go through the session client (cookie only to the server, pinned TLS). Stream names come from Frigate's own config; Frigate checks role access to the stream and camera. Sockets exist only while a camera screen is resumed. |
 | CSRF | Not applicable to a native client; Frigate's `X-CSRF-TOKEN` header is sent on writes as Frigate requires. |
 
 Tests for these paths: `core/.../SessionTest.kt` (cookie scope, CSRF, re-login, refresh, wrong/rate-limited
 login, custom cookie name), `app/.../AppUiTest.kt` (pinning dialog, refused certificate, cleartext refused,
-expired session with/without password, sign-out forgets secrets), `AccountStoreTest.kt` (encryption at rest).
+expired session with/without password, sign-out forgets secrets), `AccountStoreTest.kt` (encryption at rest), `core/.../LiveSocketsTest.kt` (cookie on websocket upgrades, refused
+stream → Forbidden, PTZ topic/payloads).
 
 ## 6. Platform constraints
 

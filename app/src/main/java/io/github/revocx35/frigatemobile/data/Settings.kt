@@ -8,16 +8,21 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark") }
 
-/** Live view quality: Frigate re-encodes the detect stream as MJPEG at this height and frame rate. */
-enum class LiveQuality(val label: String, val height: Int, val fps: Int) {
-    Low("Low · 360p, 3 fps", 360, 3),
-    Medium("Medium · 480p, 5 fps", 480, 5),
-    High("High · 720p, 10 fps", 720, 10),
+/**
+ * Live view source. [Full] plays the camera's own stream through go2rtc (full resolution and frame rate) and
+ * falls back to MJPEG when the camera has no go2rtc stream. The MJPEG options re-encode Frigate's detect stream,
+ * so they are capped at the detect resolution and frame rate.
+ */
+enum class LiveQuality(val label: String, val height: Int, val fps: Int, val full: Boolean = false) {
+    Full("Full · camera stream via go2rtc", 720, 10, full = true),
+    Low("MJPEG low · 360p, up to 3 fps", 360, 3),
+    Medium("MJPEG medium · 480p, up to 5 fps", 480, 5),
+    High("MJPEG high · 720p, up to 10 fps", 720, 10),
 }
 
 data class AppSettings(
     val theme: ThemeMode = ThemeMode.System,
-    val liveQuality: LiveQuality = LiveQuality.Medium,
+    val liveQuality: LiveQuality = LiveQuality.Full,
     val showBoxes: Boolean = false,
     val alertNotifications: Boolean = false,
     val notifyDetections: Boolean = false,
@@ -31,7 +36,7 @@ class SettingsStore(context: Context) {
 
     private fun load() = AppSettings(
         theme = enumOr(sp.getString("theme", null), ThemeMode.System),
-        liveQuality = enumOr(sp.getString("live_quality", null), LiveQuality.Medium),
+        liveQuality = enumOr(sp.getString("live_mode", null), LiveQuality.Full),
         showBoxes = sp.getBoolean("show_boxes", false),
         alertNotifications = sp.getBoolean("alert_notifications", false),
         notifyDetections = sp.getBoolean("notify_detections", false),
@@ -42,7 +47,7 @@ class SettingsStore(context: Context) {
         val s = change(_settings.value)
         sp.edit {
             putString("theme", s.theme.name)
-            putString("live_quality", s.liveQuality.name)
+            putString("live_mode", s.liveQuality.name)
             putBoolean("show_boxes", s.showBoxes)
             putBoolean("alert_notifications", s.alertNotifications)
             putBoolean("notify_detections", s.notifyDetections)
@@ -50,6 +55,11 @@ class SettingsStore(context: Context) {
         }
         _settings.value = s
     }
+
+    /** The live stream label (`live.streams` key) last chosen for [camera], if any. */
+    fun liveStream(camera: String): String? = sp.getString("stream_$camera", null)
+
+    fun setLiveStream(camera: String, label: String) = sp.edit { putString("stream_$camera", label) }
 
     /** Start time of the newest review item already notified (epoch seconds). */
     var lastNotified: Double

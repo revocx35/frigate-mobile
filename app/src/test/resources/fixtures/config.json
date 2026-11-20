@@ -553,7 +553,7 @@
                 "enabled_in_config": false
             },
             "onvif": {
-                "host": "",
+                "host": "ptz-camera.invalid",
                 "port": 8000,
                 "tls_insecure": false,
                 "autotracking": {

@@ -6,6 +6,8 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import okio.Buffer
 import java.awt.Color
 import java.awt.GradientPaint
@@ -22,6 +24,10 @@ class FakeFrigateServer {
     val cert: HeldCertificate = HeldCertificate.Builder().commonName("frigate").addSubjectAlternativeName("localhost").build()
     private val server = MockWebServer()
     val requests: MutableList<String> = Collections.synchronizedList(mutableListOf())
+    /** Messages received on Frigate's websocket (/ws), e.g. PTZ commands. */
+    val wsMessages: MutableList<String> = Collections.synchronizedList(mutableListOf())
+    /** go2rtc MSE streams: refused (403) like a camera without a go2rtc stream. */
+    @Volatile var mseAvailable = false
     @Volatile var reviewed = mutableSetOf<String>()
     /** False = the server rejects the issued session (expired/revoked), as after `auth.session_length`. */
     @Volatile var acceptSession = true
@@ -61,6 +67,13 @@ class FakeFrigateServer {
                 }
                 if (!acceptSession || request.headers["Cookie"] != "frigate_token=$token") return json("{}", 401)
                 return when {
+                    path == "/ws" -> MockResponse.Builder().webSocketUpgrade(object : WebSocketListener() {
+                        override fun onMessage(webSocket: WebSocket, text: String) { wsMessages += text }
+                        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) { webSocket.close(1000, null) }
+                    }).build()
+                    path == "/live/mse/api/ws" && !mseAvailable -> MockResponse.Builder().code(403).build()
+                    path == "/api/front/ptz/info" -> json("""{"name":"front","features":["pt","zoom"],"presets":["door"],"profiles":[]}""")
+                    path.endsWith("/ptz/info") -> json("{}")
                     path == "/api/version" -> MockResponse.Builder().code(200).body("0.18.3-a19e23a").build()
                     path == "/api/profile" -> json(fixture("profile.json"))
                     path == "/api/config" -> json(fixture("config.json"))

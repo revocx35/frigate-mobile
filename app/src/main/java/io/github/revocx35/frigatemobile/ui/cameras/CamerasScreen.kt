@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -39,14 +38,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.currentStateAsState
 import io.github.revocx35.frigatemobile.core.CameraInfo
 import io.github.revocx35.frigatemobile.core.FrigateConfig
 import io.github.revocx35.frigatemobile.core.FrigateStats
 import io.github.revocx35.frigatemobile.ui.components.EmptyBox
-import io.github.revocx35.frigatemobile.ui.components.FrigateImage
 import io.github.revocx35.frigatemobile.ui.components.LoadContent
 import io.github.revocx35.frigatemobile.ui.components.LocalConnection
 import io.github.revocx35.frigatemobile.ui.components.rememberLoader
@@ -54,11 +49,10 @@ import io.github.revocx35.frigatemobile.ui.theme.AppIcons
 import io.github.revocx35.frigatemobile.ui.theme.LocalStatusColors
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 
 data class CamerasData(val config: FrigateConfig, val stats: FrigateStats?)
 
-/** All cameras with a frame that refreshes every few seconds while the screen is visible. */
+/** All cameras with a frame that refreshes every two seconds while the screen is visible. */
 @Composable
 fun CamerasScreen(onOpen: (String) -> Unit) {
     val conn = LocalConnection.current
@@ -68,21 +62,14 @@ fun CamerasScreen(onOpen: (String) -> Unit) {
             CamerasData(conn.client.config(), stats.await())
         }
     }
-    val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
-    var tick by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
-    LaunchedEffect(lifecycle) {
-        while (lifecycle.isAtLeast(Lifecycle.State.RESUMED)) {
-            delay(REFRESH_MS)
-            tick = System.currentTimeMillis() / 1000
-        }
-    }
+    var tick by remember { mutableLongStateOf(0L) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Cameras") },
                 actions = {
-                    IconButton(onClick = { loader.reload(); tick = System.currentTimeMillis() / 1000 }) { Icon(AppIcons.Refresh, "Refresh") }
+                    IconButton(onClick = { loader.reload(); tick++ }) { Icon(AppIcons.Refresh, "Refresh") }
                 },
             )
         },
@@ -95,7 +82,7 @@ fun CamerasScreen(onOpen: (String) -> Unit) {
             }
             PullToRefreshBox(
                 isRefreshing = loader.refreshing,
-                onRefresh = { loader.reload(); tick = System.currentTimeMillis() / 1000 },
+                onRefresh = { loader.reload(); tick++ },
                 modifier = Modifier.padding(padding).fillMaxSize(),
             ) {
                 LazyVerticalGrid(
@@ -121,12 +108,10 @@ private fun CameraCard(cam: CameraInfo, online: Boolean?, tick: Long, onClick: (
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick).testTag("camera_${cam.name}")) {
         Box(Modifier.fillMaxWidth().aspectRatio(cam.aspectRatio)) {
             if (cam.enabled) {
-                FrigateImage(
-                    url = conn.client.urls.latest(cam.name, 360, cacheBust = tick).toString(),
-                    contentDescription = cam.title,
-                    placeholderKey = "latest-${cam.name}-prev",
-                    modifier = Modifier.fillMaxSize(),
-                )
+                // `tick` changes on pull-to-refresh: restart polling at once.
+                androidx.compose.runtime.key(tick) {
+                    LatestFrame(cam.name, FRAME_HEIGHT, cam.title, Modifier.fillMaxSize(), intervalMs = REFRESH_MS)
+                }
             } else {
                 EmptyBox(AppIcons.Videocam, "Camera disabled")
             }
@@ -159,4 +144,6 @@ private fun Badge(icon: androidx.compose.ui.graphics.vector.ImageVector, descrip
     }
 }
 
-private const val REFRESH_MS = 10_000L
+private const val REFRESH_MS = 2_000L
+/** Frigate scales latest.jpg from the detect stream; 480 px is sharp on a phone-wide card. */
+private const val FRAME_HEIGHT = 480

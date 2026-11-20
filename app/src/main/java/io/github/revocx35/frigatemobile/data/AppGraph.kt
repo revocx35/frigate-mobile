@@ -35,6 +35,8 @@ class Connection(
     val http: OkHttpClient,
     val client: FrigateClient,
     val imageLoader: ImageLoader,
+    /** The newest frame of each camera seen this session (camera grid), so it isn't blank when shown again. */
+    val frames: MutableMap<String, android.graphics.Bitmap> = java.util.concurrent.ConcurrentHashMap(),
 )
 
 sealed interface SignInResult {
@@ -166,6 +168,6 @@ class AppGraph(val context: Context, cipher: SecretCipher = KeystoreCipher()) {
         val a = accounts.account.value ?: return
         if (a.role == role) return
         accounts.setRole(role)
-        _connection.value?.let { c -> _connection.value = Connection(accounts.account.value!!, c.session, c.http, c.client, c.imageLoader) }
+        _connection.value?.let { c -> _connection.value = Connection(accounts.account.value!!, c.session, c.http, c.client, c.imageLoader, c.frames) }
     }
 }

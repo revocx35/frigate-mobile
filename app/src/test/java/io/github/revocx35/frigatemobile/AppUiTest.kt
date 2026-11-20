@@ -3,7 +3,9 @@ package io.github.revocx35.frigatemobile
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import io.github.revocx35.frigatemobile.data.AppGraph
@@ -104,6 +106,41 @@ class AppUiTest {
         compose.waitForTag("switch_detect")
         compose.onNodeWithTag("recordings").performClick()
         compose.waitForTag("recording_days")
+    }
+
+    @Test fun ptzHoldMovesAndReleaseStops() {
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_front")
+        compose.onNodeWithTag("camera_front").performClick()
+        // The fake Frigate refuses the go2rtc stream (403), so the live view falls back to MJPEG and says so.
+        compose.waitForTag("live_fallback")
+        compose.waitForTag("ptz_up")
+        compose.onNodeWithTag("ptz_up").performTouchInput { down(center) }
+        compose.waitUntil(5_000) { frigate.wsMessages.any { "MOVE_UP" in it } }
+        compose.onNodeWithTag("ptz_up").performTouchInput { up() }
+        compose.waitUntil(5_000) { frigate.wsMessages.any { "STOP" in it } }
+        compose.onNodeWithTag("ptz_preset_door").performScrollTo().performClick()
+        compose.waitUntil(5_000) { frigate.wsMessages.any { "preset_door" in it } }
+        assertTrue(frigate.wsMessages.all { "\"topic\":\"front/ptz\"" in it })
+    }
+
+    @Test fun cameraWithoutOnvifHasNoPtz() {
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_garage")
+        compose.onNodeWithTag("camera_garage").performScrollTo().performClick()
+        compose.waitForTag("live")
+        compose.waitForTag("switch_detect")
+        assertTrue(compose.onAllNodesWithTag("ptz").fetchSemanticsNodes().isEmpty())
+        assertFalse(frigate.requests.any { it.endsWith("/ptz/info") })
+    }
+
+    @Test fun cameraGridKeepsRefreshingFrames() {
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_front")
+        compose.waitUntil(15_000) { frigate.requests.count { it == "GET /api/front/latest.jpg" } >= 3 }
     }
 
     @Test fun birdIconSwitchesLauncherEntry() {

@@ -109,6 +109,9 @@ class FrigateClient(val session: FrigateSession, val http: OkHttpClient) {
         }
     }
 
+    /** PTZ capabilities and presets (ONVIF). Empty [PtzInfo] when the camera has none; any role with access may ask. */
+    suspend fun ptzInfo(camera: String): PtzInfo = get("api/${seg(camera)}/ptz/info", PtzInfo.serializer())
+
     // ---- plumbing ----
 
     private suspend fun <T> get(path: String, serializer: KSerializer<T>): T = get(address.resolve(path), serializer)
@@ -187,6 +190,16 @@ class MediaUrls(private val address: ServerAddress) {
             .addQueryParameter("fps", fps.toString())
             .addQueryParameter("height", height.toString()).addQueryParameter("h", height.toString())
             .apply { if (boxes) addQueryParameter("bbox", "1") }.build()
+
+    /**
+     * go2rtc's MSE live stream (fMP4 over a websocket) of a go2rtc stream name (`live.streams` value). Frigate's
+     * nginx authenticates it and refuses (403) names that aren't existing streams or that the role may not see.
+     */
+    fun mse(stream: String): HttpUrl =
+        address.resolve("live/mse/api/ws").newBuilder().addQueryParameter("src", stream).build()
+
+    /** Frigate's own websocket (`/ws`): state updates out, commands such as `<camera>/ptz` in. */
+    fun socket(): HttpUrl = address.resolve("ws")
 
     /** A review item's thumbnail: `thumb_path` is a file path under /media/frigate, served from /clips/. */
     fun reviewThumb(item: ReviewItem): HttpUrl? {

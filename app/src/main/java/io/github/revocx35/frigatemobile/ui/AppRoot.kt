@@ -90,6 +90,7 @@ private fun MainNav(graph: AppGraph, conn: Connection, settings: AppSettings, op
             CameraScreen(
                 camera = name,
                 settings = settings,
+                store = graph.settings,
                 onBack = { nav.popBackStack() },
                 onOpenReview = { nav.navigate("review/${enc(it)}") },
                 onOpenRecordings = { nav.navigate("recordings/${enc(it)}") },

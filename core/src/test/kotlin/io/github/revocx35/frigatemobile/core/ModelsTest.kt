@@ -23,6 +23,17 @@ class ModelsTest {
         assertEquals(16f / 9f, front.aspectRatio, 0.01f)
         assertEquals("Front", front.title)
         assertFalse(c.camera("garage")!!.audioConfigured)
+        assertEquals(mapOf("front" to "front"), front.liveStreams) // Frigate fills in {name: name}
+        assertFalse(front.onvifConfigured) // onvif.host is ""
+    }
+
+    @Test fun liveStreamsKeepConfigOrderAndOnvif() {
+        val root = FrigateJson.parseToJsonElement(
+            """{"cameras":{"ptzcam":{"live":{"streams":{"main":"cam_main","sub":"cam_sub"}},"onvif":{"host":"camera.invalid","port":2020}}}}""",
+        ) as JsonObject
+        val cam = FrigateConfig.parse(root).camera("ptzcam")!!
+        assertEquals(listOf("main" to "cam_main", "sub" to "cam_sub"), cam.liveStreams.toList())
+        assertTrue(cam.onvifConfigured)
     }
 
     @Test fun stats() {

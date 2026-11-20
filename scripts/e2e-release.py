@@ -246,10 +246,18 @@ def run(apk):
     time.sleep(3)
     shot("cameras")
 
-    step("camera: live view and a feature switch")
+    step("camera grid: frames keep refreshing")
+    first = subprocess.run([ADB, "exec-out", "screencap"], capture_output=True).stdout
+    time.sleep(5)
+    second = subprocess.run([ADB, "exec-out", "screencap"], capture_output=True).stdout
+    assert hashlib.sha256(first).digest() != hashlib.sha256(second).digest(), "camera grid frames didn't change"
+
+    step("camera: full-quality live view (go2rtc MSE), then a feature switch")
     tap(rid="camera_front")
     find(rid="live")
-    time.sleep(6)
+    find(rid="live_video", timeout=30)  # set once the first decoded frame is on screen
+    time.sleep(5)
+    assert not exists(rid="live_fallback"), "fell back to MJPEG although the camera has a go2rtc stream"
     assert not exists(contains="Reconnecting"), "live view failed"
     shot("live")
     before = api("GET", "config")["cameras"]["front"]["snapshots"]["enabled"]
@@ -276,6 +284,15 @@ def run(apk):
     back()  # player -> recordings
     back()  # recordings -> camera
     back()  # camera -> cameras
+    find(rid="camera_front")
+
+    step("camera without a go2rtc stream falls back to MJPEG")
+    tap(rid="camera_garage")
+    find(rid="live_fallback", timeout=30)
+    time.sleep(4)
+    assert not exists(contains="Reconnecting"), "MJPEG fallback failed"
+    shot("live_mjpeg")
+    back()
     find(rid="camera_front")
 
     step("review: open an item, it plays and gets marked reviewed")
