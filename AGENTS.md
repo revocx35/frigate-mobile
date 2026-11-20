@@ -12,7 +12,7 @@ and the threat model are in `ARCHITECTURE.md`.
 - `app/`: `data/` (AppGraph DI, AccountStore + Keystore cipher, ServerTrust pinning, Settings, AlertWorker),
   `ui/` (screens per feature, `components/Common.kt` loader/formatting, `theme/AppIcons.kt` generated).
   Tests: `app/src/test` (Robolectric UI tests against `FakeFrigateServer`, screenshot tests, worker test).
-- `scripts/`: `dev-frigate.sh` (disposable Frigate in Docker), `emulator.sh`, `e2e-release.py`, `gen_icons.py`.
+- `scripts/`: `dev-frigate.sh` (disposable Frigate in Docker), `emulator.sh`, `e2e-release.py`, `release.sh`, `gen_icons.py`.
 - `fastlane/metadata/`: store texts and per-versionCode changelogs. `docs/screenshots/`: README images (from e2e run).
 
 ## Commands
@@ -30,12 +30,14 @@ and the threat model are in `ARCHITECTURE.md`.
 - Icons: add to `ICONS` in `scripts/gen_icons.py`, run it, use `AppIcons.X`.
 
 ## Releasing
-Bump `versionCode`/`versionName` in `app/build.gradle.kts`, add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`,
-commit, `git tag vX.Y.Z && git push --tags`. The CI `release` job signs with the `RELEASE_*` repository secrets and
-publishes the GitHub release (`frigate-mobile-X.Y.Z.apk`). Then run the owner's self-hosted F-Droid publish step
-for `frigate-mobile` (documented outside this repo).
-The signing keystore lives outside the repo (location in Claude's memory / owner's notes); losing it means users
-must uninstall to update.
+The signing key never leaves the build machine (no CI signing secrets). Steps:
+1. Bump `versionCode`/`versionName` in `app/build.gradle.kts`, add
+   `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`, update docs, commit.
+2. Run the e2e check (above), then `./gradlew :app:assembleRelease` with `keystore.properties` pointing at the
+   release keystore (location in the owner's notes / Claude's memory, never in the repo).
+3. `scripts/release.sh X.Y.Z` tags, pushes and creates the GitHub release with `frigate-mobile-X.Y.Z.apk` + `.sha256`.
+4. Run the owner's self-hosted F-Droid publish step for `frigate-mobile` (documented outside this repo).
+Losing the keystore means users must uninstall to update.
 
 ## Conventions
 - All network I/O goes through the connection's single OkHttpClient (`AppGraph.connect`), which carries the session
