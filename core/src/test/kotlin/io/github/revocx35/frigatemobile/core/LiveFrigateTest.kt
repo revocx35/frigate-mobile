@@ -82,6 +82,12 @@ class LiveFrigateTest {
         }
         val days = client.recordingDays(cam, "UTC")
         assertTrue(days.isNotEmpty())
+        // Timeline: motion from the recordings (the test video always moves) and the objects that started meanwhile.
+        val now = System.currentTimeMillis() / 1000.0
+        val motion = client.motionActivity(cam, now - 3600, now, 60)
+        assertTrue("no motion samples", motion.isNotEmpty())
+        assertTrue("motion never above zero", motion.any { it.motion > 0 })
+        client.events(cam, limit = 100, after = now - 3600, before = now).forEach { assertTrue(it.startTime >= now - 3600) }
 
         // Session ended on the server side (token dropped): the stored password signs in again silently.
         val anon = FrigateSession(session.address, SessionToken("frigate_token", "x.y.z"), Credentials(user, password))

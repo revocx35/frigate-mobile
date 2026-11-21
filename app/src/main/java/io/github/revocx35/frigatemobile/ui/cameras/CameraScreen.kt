@@ -71,6 +71,7 @@ fun CameraScreen(
     onBack: () -> Unit,
     onOpenReview: (String) -> Unit,
     onOpenRecordings: (String) -> Unit,
+    onOpenTimeline: (String) -> Unit,
 ) {
     val conn = LocalConnection.current
     val loader = rememberLoader(conn, camera) {
@@ -188,7 +189,12 @@ fun CameraScreen(
                     }
                 }
                 item {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(onClick = { onOpenTimeline(camera) }, modifier = Modifier.weight(1f).testTag("timeline_button")) {
+                            Icon(AppIcons.Timeline, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Timeline")
+                        }
                         FilledTonalButton(onClick = { onOpenRecordings(camera) }, modifier = Modifier.weight(1f).testTag("recordings")) {
                             Icon(AppIcons.Movie, null)
                             Spacer(Modifier.width(8.dp))

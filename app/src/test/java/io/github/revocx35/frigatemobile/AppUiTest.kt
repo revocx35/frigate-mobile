@@ -1,5 +1,7 @@
 package io.github.revocx35.frigatemobile
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -107,6 +109,24 @@ class AppUiTest {
         compose.waitForTag("switch_detect")
         compose.onNodeWithTag("recordings").performClick()
         compose.waitForTag("recording_days")
+    }
+
+    @Test fun timelineShowsPeopleAndAnimalsAndPlays() {
+        start()
+        signInAndTrust()
+        compose.waitForTag("camera_front")
+        compose.onNodeWithTag("camera_front").performClick()
+        compose.waitForTag("timeline_button")
+        compose.onNodeWithTag("timeline_button").performScrollTo().performClick()
+        compose.waitForTag("timeline")
+        compose.onNodeWithTag("timeline_legend").assertExists()
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasContentDescriptionSubstring("Person")).fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodes(hasContentDescriptionSubstring("Dog")).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(frigate.requests.any { it.startsWith("GET /api/review/activity/motion") })
+        compose.onNodeWithTag("timeline_row_0").performClick()
+        compose.waitForTag("player")
     }
 
     @Test fun ptzHoldMovesAndReleaseStops() {
@@ -247,5 +267,9 @@ class AppUiTest {
         }
         assertNotNull(graph.accounts.account.value)
         assertEquals(logins + 1, frigate.requests.count { it == "POST /api/login" })
+    }
+
+    private fun hasContentDescriptionSubstring(text: String) = SemanticsMatcher("description contains $text") { n ->
+        n.config.getOrElse(SemanticsProperties.ContentDescription) { emptyList() }.any { it.contains(text) }
     }
 }

@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
@@ -68,11 +69,13 @@ class FrigateClient(val session: FrigateSession, val http: OkHttpClient) {
         send("POST", address.resolve("api/reviews/viewed"), body)
     }
 
-    suspend fun events(camera: String? = null, limit: Int = 50, before: Double? = null): List<FrigateEvent> {
+    /** Tracked objects, newest first. [after]/[before] filter on the start time. */
+    suspend fun events(camera: String? = null, limit: Int = 50, before: Double? = null, after: Double? = null): List<FrigateEvent> {
         val url = address.resolve("api/events").newBuilder().apply {
             addQueryParameter("limit", limit.toString())
             camera?.let { addQueryParameter("cameras", it) }
             before?.let { addQueryParameter("before", fmt(it)) }
+            after?.let { addQueryParameter("after", fmt(it)) }
         }.build()
         return get(url, ListSerializer(FrigateEvent.serializer()))
     }
@@ -86,6 +89,20 @@ class FrigateClient(val session: FrigateSession, val http: OkHttpClient) {
         } catch (_: FrigateException.NotFound) {
             ids.mapNotNull { id -> runCatching { get("api/events/${seg(id)}", FrigateEvent.serializer()) }.getOrNull() }
         }.sortedBy { it.startTime }
+    }
+
+    /**
+     * A camera's motion between [after] and [before] in [scale]-second steps (`GET /api/review/activity/motion`,
+     * 0.14+, from the recording segments). Any role that may see the camera.
+     */
+    suspend fun motionActivity(camera: String, after: Double, before: Double, scale: Int = 60): List<MotionSample> {
+        val url = address.resolve("api/review/activity/motion").newBuilder()
+            .addQueryParameter("cameras", camera)
+            .addQueryParameter("after", fmt(after))
+            .addQueryParameter("before", fmt(before))
+            .addQueryParameter("scale", scale.toString())
+            .build()
+        return Timeline.parseMotion(get(url, JsonArray.serializer()))
     }
 
     suspend fun recordingDays(camera: String, timezone: String): List<RecordingDay> {

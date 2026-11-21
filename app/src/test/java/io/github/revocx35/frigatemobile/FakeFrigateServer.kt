@@ -90,6 +90,7 @@ class FakeFrigateServer {
                     path == "/api/stats" -> json(fixture("stats.json"))
                     path == "/api/review/summary" -> json(fixture("review_summary.json"))
                     path == "/api/review" -> json(reviewList(request.url.queryParameter("reviewed")))
+                    path == "/api/review/activity/motion" -> json(motionActivity())
                     path.startsWith("/api/review/") -> json(fixture("review.json").let { all ->
                         val id = path.removePrefix("/api/review/")
                         Regex("""\{\s*"id": "${Regex.escape(id)}".*?"has_been_reviewed": (true|false)\s*\}""", RegexOption.DOT_MATCHES_ALL).find(all)!!.value
@@ -99,6 +100,7 @@ class FakeFrigateServer {
                         json("""{"success":true}""")
                     }
                     path == "/api/event_ids" -> json(fixture("events.json"))
+                    path == "/api/events" -> json(recentEvents(request.url.queryParameter("after")?.toDoubleOrNull()))
                     path.endsWith("/recordings/summary") -> json(fixture("front_recordings_summary.json"))
                     path.endsWith(".jpg") || path.endsWith(".webp") ->
                         MockResponse.Builder().code(200).addHeader("Content-Type", "image/jpeg").body(Buffer().write(jpeg)).build()
@@ -115,6 +117,22 @@ class FakeFrigateServer {
         // Drop items marked reviewed (enough for the tests: the fixture has two items).
         return reviewed.fold(all) { acc, id -> acc.replace(Regex("""\{\s*"id": "${Regex.escape(id)}".*?"has_been_reviewed": (true|false)\s*\},?""", RegexOption.DOT_MATCHES_ALL), "") }
             .replace(Regex(""",\s*]"""), "]")
+    }
+
+    /** Motion every minute of the last two hours, in Frigate 0.18's shape (sign flipped like its multi-camera graph). */
+    private fun motionActivity(): String {
+        val now = System.currentTimeMillis() / 1000 / 60 * 60
+        return (0 until 120).joinToString(",", "[", "]") { i ->
+            """{"start_time": ${now - i * 60}.0, "motion": ${if (i % 3 == 0) -(i % 40) else 0}, "audio": 0, "camera": "front"}"""
+        }
+    }
+
+    /** A person 20 minutes ago and a dog 50 minutes ago (relative to now, so the timeline shows them). */
+    private fun recentEvents(after: Double?): String {
+        val now = System.currentTimeMillis() / 1000.0
+        if (after != null && after > now - 1200) return "[]"
+        return """[{"id": "p1", "camera": "front", "label": "person", "start_time": ${now - 1200}, "end_time": ${now - 1140}, "data": {}},""" +
+            """{"id": "d1", "camera": "front", "label": "dog", "start_time": ${now - 3000}, "end_time": ${now - 2900}, "data": {}}]"""
     }
 
     private fun json(body: String, code: Int = 200) =

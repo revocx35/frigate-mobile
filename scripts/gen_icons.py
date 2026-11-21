@@ -23,7 +23,7 @@ ICONS = {
     'Hd': 'hd', 'Sd': 'sd', 'Snapshot': 'add_a_photo', 'Detect': 'center_focus_strong',
     'ArrowUp': 'keyboard_arrow_up', 'ArrowDown': 'keyboard_arrow_down', 'ArrowLeft': 'keyboard_arrow_left',
     'ArrowRight': 'keyboard_arrow_right', 'ZoomIn': 'zoom_in', 'ZoomOut': 'zoom_out', 'VolumeUp': 'volume_up',
-    'VolumeOff': 'volume_off', 'Ptz': 'control_camera', 'Bookmark': 'bookmark',
+    'VolumeOff': 'volume_off', 'Ptz': 'control_camera', 'Bookmark': 'bookmark', 'Timeline': 'view_timeline',
 }
 
 URL = 'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/{}/default/24px.svg'

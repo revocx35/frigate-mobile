@@ -5,7 +5,7 @@ through UI Automator.
 Robolectric tests run unminified code against a fake server; this script catches what R8 or the real Frigate
 breaks. It installs the APK, signs in to the disposable test Frigate (incl. the Android 17 local network prompt
 and the certificate dialog, whose fingerprint must match the server's), watches live video, talks through the dev Frigate's fake camera speaker, switches a camera
-feature (verified through Frigate's API), plays a recording and a review item, enables notifications, restarts
+feature (verified through Frigate's API), plays a recording, opens the timeline, plays a review item, enables notifications, restarts
 the app to check the stored session, signs out, and fails on any crash.
 
 Usage (emulator running: scripts/emulator.sh start; Frigate: eval "$(scripts/dev-frigate.sh up)"):
@@ -236,6 +236,7 @@ def run(apk):
 
     step("make fresh activity on the test Frigate")
     api("POST", "events/front/person/create", {"duration": 8, "include_recording": True})
+    api("POST", "events/front/dog/create", {"duration": 8, "include_recording": True})  # yellow on the timeline
 
     step("sign in")
     shot("login")
@@ -345,6 +346,27 @@ def run(apk):
     shot("recording")
     back()  # player -> recordings
     back()  # recordings -> camera
+
+    step("timeline: person (red) and animal (yellow) detections, tap plays from there")
+    tap(rid="timeline_button")
+    find(rid="timeline")
+    # Rows (timeline_row_N) describe their detections: "10:45 PM: Person, Dog".
+    rows = lambda: [n for n in nodes(dump()) if (n.get("resource-id") or "").startswith("timeline_row_")]
+    deadline = time.time() + 30
+    while not any("Person" in (n.get("content-desc") or "") for n in rows()):
+        assert time.time() < deadline, "the person event isn't on the timeline"
+        time.sleep(1)
+    assert any("Dog" in (n.get("content-desc") or "") for n in rows()), "the dog event isn't on the timeline"
+    row = next(n for n in rows() if "Person" in (n.get("content-desc") or ""))
+    time.sleep(2)
+    shot("timeline")
+    x, y = center(row)
+    adb("shell", "input", "tap", str(x), str(y))
+    find(rid="player")
+    time.sleep(6)
+    assert not exists(contains="Playback failed") and not exists(contains="No recording"), "timeline playback failed"
+    back()  # player -> timeline
+    back()  # timeline -> camera
     back()  # camera -> cameras
     find(rid="camera_front")
 

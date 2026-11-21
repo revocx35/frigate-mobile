@@ -40,6 +40,7 @@ import io.github.revocx35.frigatemobile.ui.recordings.RecordingsScreen
 import io.github.revocx35.frigatemobile.ui.review.ReviewDetailScreen
 import io.github.revocx35.frigatemobile.ui.review.ReviewScreen
 import io.github.revocx35.frigatemobile.ui.system.SystemScreen
+import io.github.revocx35.frigatemobile.ui.timeline.TimelineScreen
 import io.github.revocx35.frigatemobile.ui.theme.AppIcons
 import io.github.revocx35.frigatemobile.ui.theme.FrigateTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -96,6 +97,7 @@ private fun MainNav(graph: AppGraph, conn: Connection, settings: AppSettings, op
                 onBack = { nav.popBackStack() },
                 onOpenReview = { nav.navigate("review/${enc(it)}") },
                 onOpenRecordings = { nav.navigate("recordings/${enc(it)}") },
+                onOpenTimeline = { nav.navigate("timeline/${enc(it)}") },
             )
         }
         composable("review/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
@@ -104,6 +106,12 @@ private fun MainNav(graph: AppGraph, conn: Connection, settings: AppSettings, op
         composable("recordings/{camera}", arguments = listOf(navArgument("camera") { type = NavType.StringType })) { e ->
             val camera = e.arguments?.getString("camera").orEmpty()
             RecordingsScreen(camera, onBack = { nav.popBackStack() }) { title, start, end ->
+                nav.navigate("play/${enc(camera)}/${start.toLong()}/${end.toLong()}?title=${enc(title)}")
+            }
+        }
+        composable("timeline/{camera}", arguments = listOf(navArgument("camera") { type = NavType.StringType })) { e ->
+            val camera = e.arguments?.getString("camera").orEmpty()
+            TimelineScreen(camera, onBack = { nav.popBackStack() }) { title, start, end ->
                 nav.navigate("play/${enc(camera)}/${start.toLong()}/${end.toLong()}?title=${enc(title)}")
             }
         }
