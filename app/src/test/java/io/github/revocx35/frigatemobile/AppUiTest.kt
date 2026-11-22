@@ -1,7 +1,9 @@
 package io.github.revocx35.frigatemobile
 
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -111,7 +113,7 @@ class AppUiTest {
         compose.waitForTag("recording_days")
     }
 
-    @Test fun timelineShowsPeopleAndAnimalsAndPlays() {
+    @Test fun timelineShowsDetectionsZoomsAndSeeks() {
         start()
         signInAndTrust()
         compose.waitForTag("camera_front")
@@ -121,13 +123,35 @@ class AppUiTest {
         compose.waitForTag("timeline")
         compose.onNodeWithTag("timeline_legend").assertExists()
         compose.waitUntil(10_000) {
-            compose.onAllNodes(hasContentDescriptionSubstring("Person")).fetchSemanticsNodes().isNotEmpty() &&
-                compose.onAllNodes(hasContentDescriptionSubstring("Dog")).fetchSemanticsNodes().isNotEmpty()
+            val d = timelineDescription()
+            d.contains("Person") && d.contains("Dog")
         }
-        assertTrue(frigate.requests.any { it.startsWith("GET /api/review/activity/motion") })
-        compose.onNodeWithTag("timeline_row_0").performClick()
+        // The player loads the hour being viewed, from the recording segments.
         compose.waitForTag("player")
+        assertTrue(frigate.requests.any { it.startsWith("GET /api/front/recordings") && !it.contains("summary") })
+        assertTrue(frigate.requests.any { it.startsWith("GET /api/review/activity/motion") })
+        compose.waitForTag("timeline_playhead")
+
+        // Zoom in and out (buttons; pinch does the same).
+        compose.onNodeWithTag("zoom_in").performClick()
+        compose.onNodeWithTag("zoom_out").performClick()
+        compose.onNodeWithTag("timeline").assertExists()
+
+        // Tap further down (the past): the yellow line and the player move there.
+        val before = viewing()
+        compose.onNodeWithTag("timeline").performTouchInput { click(Offset(centerX, height * 0.85f)) }
+        compose.waitUntil(5_000) { viewing() != before }
+        val tapped = viewing()
+
+        // Drag the line's handle up (towards now): the time being viewed follows.
+        compose.onNodeWithTag("timeline_playhead").performTouchInput { swipeUp(startY = centerY, endY = centerY - 200f) }
+        compose.waitUntil(5_000) { viewing() != tapped }
     }
+
+    private fun timelineDescription(): String =
+        compose.onNodeWithTag("timeline").fetchSemanticsNode().config.getOrElse(SemanticsProperties.ContentDescription) { emptyList() }.joinToString()
+
+    private fun viewing(): String = Regex("Viewing ([^.]+)\\.").find(timelineDescription())?.groupValues?.get(1).orEmpty()
 
     @Test fun ptzHoldMovesAndReleaseStops() {
         start()
@@ -269,7 +293,4 @@ class AppUiTest {
         assertEquals(logins + 1, frigate.requests.count { it == "POST /api/login" })
     }
 
-    private fun hasContentDescriptionSubstring(text: String) = SemanticsMatcher("description contains $text") { n ->
-        n.config.getOrElse(SemanticsProperties.ContentDescription) { emptyList() }.any { it.contains(text) }
-    }
 }

@@ -22,8 +22,8 @@ android {
         applicationId = "io.github.revocx35.frigatemobile"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "1.4.0"
+        versionCode = 9
+        versionName = "1.5.0"
 
         // libwebrtc (two-way audio) is native: ship the ABIs phones and the x86_64 test emulator use.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }

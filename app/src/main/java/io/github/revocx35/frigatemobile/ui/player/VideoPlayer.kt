@@ -56,7 +56,7 @@ class FrigatePlayer(val exo: ExoPlayer) {
 }
 
 /**
- * Plays a Frigate recording (HLS from /vod/… or an MP4) through the signed-in session's OkHttp client, so the
+ * Plays a Frigate recording (HLS from /vod/… or an MP4) from [startMs] (a new [key] restarts it there) through the signed-in session's OkHttp client, so the
  * session cookie and the pinned certificate apply to every segment. Pauses when the app goes to the background,
  * released when it leaves the composition. If the hardware video decoder fails mid-stream (some devices and the
  * emulator's decoder reject camera streams), playback restarts once with Android's software decoders, at the same
@@ -64,12 +64,12 @@ class FrigatePlayer(val exo: ExoPlayer) {
  */
 @OptIn(UnstableApi::class)
 @Composable
-fun rememberFrigatePlayer(url: String): FrigatePlayer {
+fun rememberFrigatePlayer(url: String, startMs: Long = 0L, key: Any? = null): FrigatePlayer {
     val conn = LocalConnection.current
     val context = LocalContext.current
-    var software by remember(url) { mutableStateOf(false) }
-    var resumeAt by remember(url) { mutableLongStateOf(0L) }
-    val player = remember(url, software) {
+    var software by remember(url, key) { mutableStateOf(false) }
+    var resumeAt by remember(url, key) { mutableLongStateOf(startMs) }
+    val player = remember(url, key, software) {
         val renderers = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
             .apply { if (software) setMediaCodecSelector(softwareFirstSelector()) }

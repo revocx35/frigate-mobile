@@ -111,9 +111,7 @@ private fun MainNav(graph: AppGraph, conn: Connection, settings: AppSettings, op
         }
         composable("timeline/{camera}", arguments = listOf(navArgument("camera") { type = NavType.StringType })) { e ->
             val camera = e.arguments?.getString("camera").orEmpty()
-            TimelineScreen(camera, onBack = { nav.popBackStack() }) { title, start, end ->
-                nav.navigate("play/${enc(camera)}/${start.toLong()}/${end.toLong()}?title=${enc(title)}")
-            }
+            TimelineScreen(camera, onBack = { nav.popBackStack() })
         }
         composable(
             "play/{camera}/{start}/{end}?title={title}",

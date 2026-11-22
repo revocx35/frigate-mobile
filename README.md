@@ -40,8 +40,9 @@ Frigate server's API directly, with no cloud service in between and no tracking.
   unreviewed items and by camera, with unreviewed counts. "Mark all as reviewed".
 - **Review item:** plays the recording around the activity (seekable HLS), lists tracked objects with score, zones
   and snapshots, and marks the item reviewed, like the web UI.
-- **Timeline:** a camera's activity as a vertical timeline, newest on top: motion bars, people in red, animals in
-  yellow, other objects in blue, labelled; scroll for older activity, tap to play the recording from that moment.
+- **Timeline:** a camera's activity as a vertical timeline under a recording player, newest on top: motion bars,
+  people in red, animals in yellow, other objects in blue, labelled. A yellow line marks the moment being played and
+  moves with it; drag it or tap the timeline to jump; pinch or +/- to zoom (a minute to two days); scroll for older.
 - **Recordings:** a camera's recordings by day and hour; tap an hour to play it.
 - **Camera switches (admins):** object detection, recording, snapshots and audio detection (needs Frigate 0.17+,
   which added the REST endpoint for them).

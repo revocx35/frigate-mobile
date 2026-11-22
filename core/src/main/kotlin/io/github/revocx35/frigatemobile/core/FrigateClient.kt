@@ -105,6 +105,15 @@ class FrigateClient(val session: FrigateSession, val http: OkHttpClient) {
         return Timeline.parseMotion(get(url, JsonArray.serializer()))
     }
 
+    /** A camera's recording segments overlapping [after, before) (`GET /api/{camera}/recordings`). */
+    suspend fun recordings(camera: String, after: Double, before: Double): List<RecordingSegment> {
+        val url = address.resolve("api/${seg(camera)}/recordings").newBuilder()
+            .addQueryParameter("after", fmt(after))
+            .addQueryParameter("before", fmt(before))
+            .build()
+        return TimelineScale.parseRecordings(get(url, JsonArray.serializer()))
+    }
+
     suspend fun recordingDays(camera: String, timezone: String): List<RecordingDay> {
         val url = address.resolve("api/${seg(camera)}/recordings/summary").newBuilder().addQueryParameter("timezone", timezone).build()
         return get(url, ListSerializer(RecordingDay.serializer())).sortedByDescending { it.day }

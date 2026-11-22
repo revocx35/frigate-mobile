@@ -87,3 +87,78 @@ object Timeline {
         return (0 until n).map { i -> TimelineBucket(after + i.toDouble() * bucketSeconds, level[i], kind[i]) }
     }
 }
+
+/** One recording segment of a camera (`GET /api/{camera}/recordings`). */
+data class RecordingSegment(val start: Double, val end: Double)
+
+/**
+ * Maps player positions of a VOD window (`/vod/{camera}/start/{s}/end/{e}`) to wall-clock time. Frigate builds the
+ * playlist from the recording segments in the window, clips the first and last to the window and skips the gaps
+ * (no recording), so position 0 is the first recorded moment and positions jump over gaps.
+ */
+class RecordingMap(val start: Double, val end: Double, segments: List<RecordingSegment>) {
+    private val pieces: List<RecordingSegment>
+    private val offsets: DoubleArray
+
+    init {
+        val out = mutableListOf<RecordingSegment>()
+        var last = start
+        for (s in segments.sortedBy { it.start }) {
+            val a = max(max(s.start, start), last)
+            val b = min(s.end, end)
+            if (b - a > 0.001) {
+                out += RecordingSegment(a, b)
+                last = b
+            }
+        }
+        pieces = out
+        offsets = DoubleArray(out.size)
+        var acc = 0.0
+        out.forEachIndexed { i, p -> offsets[i] = acc; acc += p.end - p.start }
+    }
+
+    val isEmpty: Boolean get() = pieces.isEmpty()
+    /** Seconds of video in the window. */
+    val duration: Double get() = if (pieces.isEmpty()) 0.0 else offsets.last() + (pieces.last().end - pieces.last().start)
+    val lastTime: Double? get() = pieces.lastOrNull()?.end
+
+    /** Player position (s) for wall-clock [t]; in a gap, the next recorded moment; null after the last segment. */
+    fun positionOf(t: Double): Double? {
+        for (i in pieces.indices) {
+            val p = pieces[i]
+            if (t < p.start) return offsets[i]
+            if (t < p.end) return offsets[i] + (t - p.start)
+        }
+        return null
+    }
+
+    /** Wall-clock time at player position [position] (s), clamped to the recorded range. */
+    fun timeAt(position: Double): Double {
+        if (pieces.isEmpty()) return start
+        for (i in pieces.indices.reversed()) {
+            if (position >= offsets[i]) return min(pieces[i].end, pieces[i].start + (position - offsets[i]))
+        }
+        return pieces.first().start
+    }
+}
+
+/** Zoom helpers: steps that keep labels and bars readable at any scale. */
+object TimelineScale {
+    /** (label step, minor tick step) in seconds, finest first. */
+    val TICKS = listOf(60 to 30, 300 to 60, 600 to 120, 900 to 300, 1800 to 600, 3600 to 900, 7200 to 1800, 10800 to 3600, 21600 to 3600, 43200 to 10800, 86400 to 21600)
+    private val BARS = intArrayOf(30, 60, 120, 300, 600, 900, 1800, 3600, 7200)
+
+    /** The finest label step whose labels are at least [minSeconds] apart. */
+    fun ticks(minSeconds: Double): Pair<Int, Int> = TICKS.firstOrNull { it.first >= minSeconds } ?: TICKS.last()
+
+    /** The finest bar step (a multiple of Frigate's 30 s motion records) at least [minSeconds] long. */
+    fun bar(minSeconds: Double): Int = BARS.firstOrNull { it >= minSeconds } ?: BARS.last()
+
+    /** Parses `GET /api/{camera}/recordings` (`[{start_time, end_time, ...}]`), skipping malformed records. */
+    fun parseRecordings(root: JsonArray): List<RecordingSegment> = root.mapNotNull { e ->
+        val o = e as? JsonObject ?: return@mapNotNull null
+        val a = o.dbl("start_time") ?: return@mapNotNull null
+        val b = o.dbl("end_time") ?: return@mapNotNull null
+        if (b > a) RecordingSegment(a, b) else null
+    }.sortedBy { it.start }
+}

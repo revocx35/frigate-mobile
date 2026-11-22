@@ -49,4 +49,39 @@ class TimelineTest {
         assertTrue(b.all { it.motion == 0f })
         assertNull(b[0].kind)
     }
+
+    @Test fun recordingMapSkipsGapsAndClipsToWindow() {
+        // Window 1000..1100; recordings 990..1020, gap, 1040..1060, 1060..1200 (clipped at 1100).
+        val m = RecordingMap(1000.0, 1100.0, listOf(
+            RecordingSegment(1060.0, 1200.0), RecordingSegment(990.0, 1020.0), RecordingSegment(1040.0, 1060.0),
+        ))
+        assertEquals(80.0, m.duration, 1e-9)
+        assertEquals(0.0, m.positionOf(1000.0)!!, 1e-9)
+        assertEquals(15.0, m.positionOf(1015.0)!!, 1e-9)
+        assertEquals(20.0, m.positionOf(1030.0)!!, 1e-9) // in the gap: the next recorded moment
+        assertEquals(45.0, m.positionOf(1065.0)!!, 1e-9)
+        assertNull(m.positionOf(1100.0))
+        assertEquals(1015.0, m.timeAt(15.0), 1e-9)
+        assertEquals(1040.0, m.timeAt(20.0), 1e-9)
+        assertEquals(1065.0, m.timeAt(45.0), 1e-9)
+        assertEquals(1100.0, m.timeAt(500.0), 1e-9)
+        assertEquals(1100.0, m.lastTime!!, 1e-9)
+        assertTrue(RecordingMap(0.0, 10.0, emptyList()).isEmpty)
+    }
+
+    @Test fun scaleSteps() {
+        assertEquals(60 to 30, TimelineScale.ticks(10.0))
+        assertEquals(900 to 300, TimelineScale.ticks(700.0))
+        assertEquals(86400 to 21600, TimelineScale.ticks(1e9))
+        assertEquals(30, TimelineScale.bar(5.0))
+        assertEquals(120, TimelineScale.bar(61.0))
+        assertEquals(7200, TimelineScale.bar(1e9))
+    }
+
+    @Test fun parsesRecordings() {
+        val json = FrigateJson.parseToJsonElement(
+            """[{"id": "a", "start_time": 20.0, "end_time": 30.0, "duration": 10}, {"start_time": 5, "end_time": 15}, {"start_time": 40}, {"start_time": 50, "end_time": 50}]""",
+        ) as JsonArray
+        assertEquals(listOf(RecordingSegment(5.0, 15.0), RecordingSegment(20.0, 30.0)), TimelineScale.parseRecordings(json))
+    }
 }

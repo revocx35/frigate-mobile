@@ -101,6 +101,7 @@ class FakeFrigateServer {
                     }
                     path == "/api/event_ids" -> json(fixture("events.json"))
                     path == "/api/events" -> json(recentEvents(request.url.queryParameter("after")?.toDoubleOrNull()))
+                    path.endsWith("/recordings") -> json(recordingSegments())
                     path.endsWith("/recordings/summary") -> json(fixture("front_recordings_summary.json"))
                     path.endsWith(".jpg") || path.endsWith(".webp") ->
                         MockResponse.Builder().code(200).addHeader("Content-Type", "image/jpeg").body(Buffer().write(jpeg)).build()
@@ -124,6 +125,14 @@ class FakeFrigateServer {
         val now = System.currentTimeMillis() / 1000 / 60 * 60
         return (0 until 120).joinToString(",", "[", "]") { i ->
             """{"start_time": ${now - i * 60}.0, "motion": ${if (i % 3 == 0) -(i % 40) else 0}, "audio": 0, "camera": "front"}"""
+        }
+    }
+
+    /** 60 s recording segments for the last two hours (`GET /api/{camera}/recordings`). */
+    private fun recordingSegments(): String {
+        val now = System.currentTimeMillis() / 1000 / 60 * 60
+        return (1..120).joinToString(",", "[", "]") { i ->
+            """{"id": "r$i", "start_time": ${now - i * 60}.0, "end_time": ${now - i * 60 + 60}.0, "duration": 60, "motion": 0, "objects": 0}"""
         }
     }
 

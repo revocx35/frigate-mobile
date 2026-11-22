@@ -13,7 +13,8 @@ and the threat model are in `ARCHITECTURE.md`.
 - `app/`: `data/` (AppGraph DI, AccountStore + Keystore cipher, ServerTrust pinning, Settings, AlertWorker),
   `ui/` (screens per feature, `components/Common.kt` loader/formatting, `theme/AppIcons.kt` generated).
   Live: `ui/cameras/LiveView.kt` (MSE player + MJPEG fallback), `Talkback.kt` (two-way audio: WebRTC TalkSession, TalkController, TalkButton), `FlacAudioRenderer.kt` (own FLAC audio renderer), `MjpegView.kt`, `PtzControls.kt`, `LatestFrame.kt`.
-  Timeline: `ui/timeline/TimelineScreen.kt` (camera screen's "Timeline" button).
+  Timeline: `ui/timeline/TimelineScreen.kt` (camera screen's "Timeline" button): Canvas + gestures (pan/fling, pinch,
+  tap, playhead drag), inline player via `rememberFrigatePlayer(url, startMs, key)`.
   Tests: `app/src/test` (Robolectric UI tests against `FakeFrigateServer`, screenshot tests, worker test).
 - `scripts/`: `dev-frigate.sh` (disposable Frigate in Docker), `emulator.sh`, `e2e-release.py`, `release.sh`, `gen_icons.py`.
 - `fastlane/metadata/`: store texts and per-versionCode changelogs. `docs/screenshots/`: README images (from e2e run).
@@ -22,7 +23,7 @@ and the threat model are in `ARCHITECTURE.md`.
 - JDK 21 is required (`export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`; JDK 25 here has no javac toolchain
   capability for AGP). SDK at `/opt/android-sdk` via `local.properties` (not committed).
 - On the dev LXC wrap heavy jobs: `heavy ./gradlew …` (capped CPU/RAM).
-- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (80 tests; 5 skipped: the live one without a server, screenshots unless recording).
+- CI set: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` (83 tests; 5 skipped: the live one without a server, screenshots unless recording).
 - Live tests: `eval "$(scripts/dev-frigate.sh up)"` (Frigate `stable` on https://127.0.0.1:18971, two looping test
   cameras, admin password from its first-start log, cert fingerprint exported), rerun `:core:test`.
   `scripts/dev-frigate.sh down` removes it. The image is ~9 GB on disk: remove it when done if disk is tight.
@@ -105,7 +106,11 @@ Losing the keystore means users must uninstall to update.
 - `mipmap-anydpi-v26` must keep its `-v26` suffix.
 - Timeline colors are the owner's choice: people red, animals yellow (`TimelineColors`); animal labels are the set in
   `core/Timeline.kt` (add new Frigate+ animal labels there). Labels drawn on the Canvas aren't semantics nodes:
-  each row's content description lists its detections ("10:45 PM: Person, Dog"), which the tests match on.
+  the canvas's content description carries the playhead time and visible detections ("Timeline. Viewing 8:31:05 PM.
+  Detections: Person 8:31 PM, ..."), which the Robolectric test and the e2e run match on. The playhead's handle is a
+  real node (`timeline_playhead`) so tests can drag it.
+- Timeline player positions are not `time - window start`: VOD playlists skip recording gaps. Always convert through
+  `RecordingMap` (built from `/api/{camera}/recordings`).
 - FakeFrigateServer routes are checked in order: put specific `/api/review/...` paths before the
   `startsWith("/api/review/")` catch-all (it throws on unknown ids and MockWebServer then never answers).
 - Launcher entries are the activity-aliases `.LauncherDefault` / `.LauncherBird` (MainActivity has no LAUNCHER

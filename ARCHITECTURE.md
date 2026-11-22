@@ -16,7 +16,8 @@ core/   (pure Kotlin/JVM, unit-tested without Android)
   AudioLeveler     automatic gain for that PCM (cameras record very quietly)
   LiveSockets      MseStream (go2rtc MSE over websocket: codec negotiation, fMP4 chunks), WebRtcSignaling (go2rtc
                    WebRTC offer/answer/candidates, for two-way audio) and FrigateSocket (Frigate's /ws, PTZ)
-  Timeline         timeline math: label -> person/animal/other, motion samples + tracked objects -> 60 s bars
+  Timeline         timeline math: label -> person/animal/other, motion + tracked objects -> bars, RecordingMap
+                   (VOD player position <-> wall-clock time across recording gaps), TimelineScale (zoom steps)
   Models           lenient models; config/stats parsed from JsonObject (Frigate adds fields every release)
 
 app/
@@ -34,7 +35,7 @@ app/
                       chips, mute; Talkback: two-way audio; PtzControls; switches; activity)
   ui/review           review queue + review item (HLS playback, tracked objects, snapshots)
   ui/recordings       per-camera day/hour list
-  ui/timeline         per-camera activity timeline (motion bars colored by detection, paged as you scroll, tap plays)
+  ui/timeline         per-camera activity timeline under an inline recording player: yellow playhead line, pinch zoom
   ui/player           ExoPlayer (Media3) through the session's OkHttp client; software-decoder retry
   ui/system           stats, settings, account, sign out
 ```
@@ -92,7 +93,11 @@ app/
 - `GET /api/{camera}/recordings/summary?timezone=` → days with hours in that time zone.
 - `GET /api/review/activity/motion?cameras=&after=&before=&scale=` (0.14+) → `[{start_time, motion, camera}]`, one
   record per `scale` seconds from the recording segments; motion is 0–100 and Frigate negates every other camera's
-  values for its own graph, so only the magnitude counts. `GET /api/events?cameras=&after=&before=` filters on the
+  values for its own graph, so only the magnitude counts. `GET /api/{camera}/recordings?after=&before=` → segments
+  `[{start_time, end_time, duration, ...}]` overlapping the range.
+- VOD playlists (`/vod/{camera}/start/{s}/end/{e}`) concatenate the segments in the window, clipping the first and
+  last and **skipping gaps**: player position 0 is the first recorded moment, not `s`. `RecordingMap` rebuilds that
+  layout from the segments to convert positions to times and back. `GET /api/events?cameras=&after=&before=` filters on the
   start time, so the timeline asks from an hour earlier to catch objects still on screen.
 - `PUT /api/camera/{camera}/set/{feature} {"value":"ON"|"OFF"}` (admin) exists since 0.17; older releases → 404 →
   "needs a newer Frigate". Frigate applies switches asynchronously: `/api/config` shows them a moment later.
@@ -149,12 +154,20 @@ app/
 - **Recordings = HLS VOD** (Media3 ExoPlayer + OkHttp data source): instant start and seeking. If the hardware
   H.264 decoder fails mid-stream (seen on the emulator's goldfish decoder; some phones reject camera streams too),
   the player restarts once with software decoders first, at the same position.
-- **Timeline = motion + tracked objects** (like Frigate's own review timeline): bars are motion per minute (square
-  root of the share of the busiest minute loaded, so quiet motion still shows), colored by the most important object
-  in that minute: person red > animal yellow > other blue; a translucent band marks each object's time. A LazyColumn
-  of 15-minute rows (Canvas each) loads 6 h pages as the list nears its end (stops after 4 empty pages or 31 days)
-  and refreshes the newest hour every minute while near the top. Tapping a row plays the recording (HLS VOD) from
-  that moment for up to 30 minutes.
+- **Timeline = motion + tracked objects** (like Frigate's own review timeline): one Canvas (no list) drawn from a
+  view state `top` (time at the top edge) + `spp` (seconds per pixel), so zoom is continuous: pinch or +/- between
+  one 30 s motion record per 40 dp and two days on screen. Bars aggregate motion to a step that keeps >= 4 dp between
+  them (square root of the share of the busiest record loaded, so quiet motion still shows), colored by the most
+  important object in that step: person red > animal yellow > other blue; a translucent band marks each object's
+  time. Tick/label steps follow the zoom (`TimelineScale`). Activity loads in 6 h pages as the view nears the oldest
+  loaded time (stops after 4 empty pages or 31 days); the newest hour refreshes every minute while in view.
+- **Playhead + inline player.** The player above the timeline loads one clock hour of recording (up to now) as HLS
+  VOD and the yellow line is its position mapped through `RecordingMap`. It follows playback (the view scrolls along
+  when the line would leave the screen, unless the user touched the timeline in the last 3 s), continues into the next
+  hour at the end of one, and seeks when the line or its time handle is dragged (seeks within the loaded hour while
+  dragging, loads another hour on release) or the timeline is tapped. Times without recording jump to the next
+  recorded moment (at the live edge: the newest one). Gesture handlers read state through `rememberUpdatedState`
+  (they outlive recompositions; a stale player reference would seek a released ExoPlayer).
 - **Notifications by polling** (WorkManager, 15 min): Frigate's own push uses Web Push for browsers. No foreground
   service, nothing runs while notifications are off.
 - **App icon.** Android can't set an arbitrary image as an app's launcher icon. Built-in icons switch via

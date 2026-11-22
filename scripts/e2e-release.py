@@ -5,7 +5,7 @@ through UI Automator.
 Robolectric tests run unminified code against a fake server; this script catches what R8 or the real Frigate
 breaks. It installs the APK, signs in to the disposable test Frigate (incl. the Android 17 local network prompt
 and the certificate dialog, whose fingerprint must match the server's), watches live video, talks through the dev Frigate's fake camera speaker, switches a camera
-feature (verified through Frigate's API), plays a recording, opens the timeline, plays a review item, enables notifications, restarts
+feature (verified through Frigate's API), plays a recording, uses the timeline (playback line, seeking, zoom), plays a review item, enables notifications, restarts
 the app to check the stored session, signs out, and fails on any crash.
 
 Usage (emulator running: scripts/emulator.sh start; Frigate: eval "$(scripts/dev-frigate.sh up)"):
@@ -347,25 +347,48 @@ def run(apk):
     back()  # player -> recordings
     back()  # recordings -> camera
 
-    step("timeline: person (red) and animal (yellow) detections, tap plays from there")
+    step("timeline: detections, the yellow viewing line follows playback, tap/drag seeks, zoom")
     tap(rid="timeline_button")
-    find(rid="timeline")
-    # Rows (timeline_row_N) describe their detections: "10:45 PM: Person, Dog".
-    rows = lambda: [n for n in nodes(dump()) if (n.get("resource-id") or "").startswith("timeline_row_")]
+    desc = lambda: find(rid="timeline").get("content-desc") or ""  # "Timeline. Viewing 8:31:05 PM. Detections: ..."
+    viewing = lambda: (re.search(r"Viewing ([^.]+)\.", desc()) or [None, ""])[1]
     deadline = time.time() + 30
-    while not any("Person" in (n.get("content-desc") or "") for n in rows()):
-        assert time.time() < deadline, "the person event isn't on the timeline"
+    while not ("Person" in desc() and "Dog" in desc()):
+        assert time.time() < deadline, f"person/dog not on the timeline: {desc()!r}"
         time.sleep(1)
-    assert any("Dog" in (n.get("content-desc") or "") for n in rows()), "the dog event isn't on the timeline"
-    row = next(n for n in rows() if "Person" in (n.get("content-desc") or ""))
-    time.sleep(2)
+    find(rid="player", timeout=30)
+    time.sleep(5)
+    assert not exists(contains="Playback failed") and not exists(rid="player_message"), "timeline player has no recording"
     shot("timeline")
-    x, y = center(row)
-    adb("shell", "input", "tap", str(x), str(y))
-    find(rid="player")
-    time.sleep(6)
-    assert not exists(contains="Playback failed") and not exists(contains="No recording"), "timeline playback failed"
-    back()  # player -> timeline
+    v1 = viewing()
+    time.sleep(4)
+    assert viewing() != v1, "the viewing line doesn't follow playback"
+    x1, y1, x2, y2 = map(int, re.findall(r"\d+", find(rid="timeline").get("bounds")))
+    before = viewing()
+    adb("shell", "input", "tap", str((x1 + x2) // 2), str(y1 + (y2 - y1) * 85 // 100))  # back in time
+    for _ in range(20):
+        if viewing() != before:
+            break
+        time.sleep(0.5)
+    else:
+        raise AssertionError("tapping the timeline didn't move the viewing line")
+    time.sleep(4)
+    assert not exists(contains="Playback failed"), "playback failed after tapping the timeline"
+    hx, hy = center(find(rid="timeline_playhead"))
+    before = viewing()
+    adb("shell", "input", "swipe", str(hx), str(hy), str(hx), str(max(y1 + 40, hy - 300)), "800")  # drag the line up
+    time.sleep(2)
+    assert viewing() != before, "dragging the viewing line didn't move it"
+    time.sleep(4)
+    assert not exists(contains="Playback failed"), "playback failed after dragging the line"
+    tap(rid="zoom_in")
+    tap(rid="zoom_in")
+    time.sleep(1)
+    shot("timeline_zoomed")
+    tap(rid="zoom_out")
+    tap(rid="zoom_out")
+    tap(rid="zoom_out")
+    time.sleep(1)
+    shot("timeline_zoomed_out")
     back()  # timeline -> camera
     back()  # camera -> cameras
     find(rid="camera_front")
